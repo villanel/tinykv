@@ -68,14 +68,20 @@ type Ready struct {
 
 // RawNode is a wrapper of Raft.
 type RawNode struct {
-	Raft *Raft
+	Raft      *Raft
+	SoftState *SoftState
+	HardState pb.HardState
 	// Your Data Here (2A).
 }
 
 // NewRawNode returns a new RawNode given configuration and a list of raft peers.
 func NewRawNode(config *Config) (*RawNode, error) {
 	// Your Code Here (2A).
-	return nil, nil
+	raft := newRaft(config)
+	rn := &RawNode{Raft: raft}
+	rn.SoftState = raft.softState()
+	rn.HardState = raft.hardState()
+	return rn, nil
 }
 
 // Tick advances the internal logical clock by a single tick.

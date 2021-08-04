@@ -1,38 +1,57 @@
 package standalone_storage
 
 import (
+	"github.com/Connor1996/badger"
 	"github.com/pingcap-incubator/tinykv/kv/config"
 	"github.com/pingcap-incubator/tinykv/kv/storage"
+	"github.com/pingcap-incubator/tinykv/kv/util/engine_util"
 	"github.com/pingcap-incubator/tinykv/proto/pkg/kvrpcpb"
+	"io/ioutil"
 )
 
 // StandAloneStorage is an implementation of `Storage` for a single-node TinyKV instance. It does not
 // communicate with other nodes and all data is stored locally.
 type StandAloneStorage struct {
-	// Your Data Here (1).
+	db *badger.DB
 }
 
 func NewStandAloneStorage(conf *config.Config) *StandAloneStorage {
-	// Your Code Here (1).
+	return &StandAloneStorage{
+		nil,
+	}
 	return nil
 }
 
 func (s *StandAloneStorage) Start() error {
-	// Your Code Here (1).
+	dir, _ := ioutil.TempDir("", "engine_util")
+	opts := badger.DefaultOptions
+	opts.Dir = dir
+	opts.ValueDir = dir
+	db, _ := badger.Open(opts)
+	s.db = db
 	return nil
 }
 
 func (s *StandAloneStorage) Stop() error {
-	// Your Code Here (1).
+	err := s.db.Close()
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
 func (s *StandAloneStorage) Reader(ctx *kvrpcpb.Context) (storage.StorageReader, error) {
-	// Your Code Here (1).
-	return nil, nil
+	return &StandaloneReader{
+		s.db,
+	}, nil
+
 }
 
 func (s *StandAloneStorage) Write(ctx *kvrpcpb.Context, batch []storage.Modify) error {
-	// Your Code Here (1).
+	e := new(engine_util.WriteBatch)
+	for _, modify := range batch {
+		e.SetCF(modify.Cf(), modify.Key(), modify.Value())
+	}
+	e.WriteToDB(s.db)
 	return nil
 }
