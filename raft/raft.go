@@ -637,3 +637,8 @@ func (r *Raft) hardState() pb.HardState {
 }
 func (r *Raft) advance(rd Ready) {
 }
+
+func (l *RaftLog) hasNextEnts() bool {
+	off := max(l.applied+1, l.FirstIndex())
+	return l.committed+1 > off
+}

@@ -376,7 +376,10 @@ func (p *peer) sendRaftMessage(msg eraftpb.Message, trans Transport) error {
 	sendMsg.ToPeer = toPeer
 
 	// There could be two cases:
-	// 1. Target peer already exists but has not established communication with leader yet
+	// 1. Tif !IsEmptyHardState(rd.HardState) {
+	//		rn.prevHardSt = rd.HardState
+	//	}
+	//	rn.raft.advance(rd)exists but has not established communication with leader yet
 	// 2. Target peer is added newly due to member change or region split, but it's not
 	//    created yet
 	// For both cases the region start key and end key are attached in RequestVote and
