@@ -307,7 +307,28 @@ func ClearMeta(engines *engine_util.Engines, kvWB, raftWB *engine_util.WriteBatc
 // Append the given entries to the raft log and update ps.raftState also delete log entries that will
 // never be committed
 func (ps *PeerStorage) Append(entries []eraftpb.Entry, raftWB *engine_util.WriteBatch) error {
+	if len(entries ) ==0 {
+		return nil}
 	// Your Code Here (2B).
+	first, _ := ps.FirstIndex()
+	last:=entries[0].Index+uint64(len(entries))-1
+	if last < first {
+		return  nil
+	}
+	if first > entries[0].Index {
+		entries = entries[first-entries[0].Index:]
+	}
+	offset := entries[0].Index  - ps.applyState.AppliedIndex
+	switch {
+	case uint64(len(ms.ents)) > offset:
+		ms.ents = append([]pb.Entry{}, ms.ents[:offset]...)
+		ms.ents = append(ms.ents, entries...)
+	case uint64(len(ms.ents)) == offset:
+		ms.ents = append(ms.ents, entries...)
+	default:
+		getLogger().Panicf("missing log entry [last: %d, append at: %d]",
+			ms.lastIndex(), entries[0].Index)
+	}
 	return nil
 }
 
@@ -331,6 +352,7 @@ func (ps *PeerStorage) ApplySnapshot(snapshot *eraftpb.Snapshot, kvWB *engine_ut
 func (ps *PeerStorage) SaveReadyState(ready *raft.Ready) (*ApplySnapResult, error) {
 	// Hint: you may call `Append()` and `ApplySnapshot()` in this function
 	// Your Code Here (2B/2C).
+	//engine_util.WriteBatch{}
 	return nil, nil
 }
 
