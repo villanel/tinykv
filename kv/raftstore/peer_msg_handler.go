@@ -42,6 +42,11 @@ func (d *peerMsgHandler) HandleRaftReady() {
 	if d.stopped {
 		return
 	}
+	if d.RaftGroup.HasReady() {
+		//d.RaftGroup.Rafte
+		//Transport.Send()
+
+	}
 	// Your Code Here (2B).
 }
 
