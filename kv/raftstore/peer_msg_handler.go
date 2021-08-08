@@ -74,6 +74,20 @@ func (d *peerMsgHandler) HandleRaftReady() {
 		//5.advance
 	}
 }
+func (d *peerMsgHandler) getProposal(entry *eraftpb.Entry) *proposal {
+	if len(d.proposals) > 0 {
+		p := d.proposals[0]
+		if p.index == entry.Index {
+			if p.term != entry.Term {
+				NotifyStaleReq(entry.Term, p.cb)
+			} else {
+				d.proposals = d.proposals[1:]
+				return p
+			}
+		}
+	}
+	return nil
+}
 func (d *peerMsgHandler) process(entry *eraftpb.Entry, kvWB *engine_util.WriteBatch) *engine_util.WriteBatch {
 	if entry.EntryType == eraftpb.EntryType_EntryConfChange {
 		CC := &eraftpb.ConfChange{}
@@ -82,6 +96,7 @@ func (d *peerMsgHandler) process(entry *eraftpb.Entry, kvWB *engine_util.WriteBa
 			panic(err)
 		}
 		d.processConfChange(CC, entry, kvWB)
+		d.RaftGroup.ApplyConfChange(*CC)
 		return kvWB
 	}
 	msg := &raft_cmdpb.RaftCmdRequest{}
@@ -90,32 +105,46 @@ func (d *peerMsgHandler) process(entry *eraftpb.Entry, kvWB *engine_util.WriteBa
 		panic(err)
 	}
 	if len(msg.Requests) > 0 {
-		return d.processReq(entry, msg, kvWB)
+		d.processReq(entry, msg, kvWB)
 	}
 	if msg.AdminRequest != nil {
 		d.processAdminReq(entry, msg, kvWB)
-		return kvWB
 	}
 	return kvWB
 }
 func (d *peerMsgHandler) processConfChange(cc *eraftpb.ConfChange, entry *eraftpb.Entry, wb *engine_util.WriteBatch) {
 	msg := new(raft_cmdpb.RaftCmdRequest)
 	err := msg.Unmarshal(cc.Context)
+	region := d.Region()
 	if err != nil {
 		panic(err)
 	}
 	switch cc.ChangeType {
 	case eraftpb.ConfChangeType_AddNode:
 		//addnode
+		d.addNode(region, cc, msg, wb)
 	case eraftpb.ConfChangeType_RemoveNode:
 		//removenode
+		d.removeNode(region, cc, wb)
 
 	default:
 		log.Warnf("%s unknown ConfChangeType(%v)", d.Tag, cc.GetChangeType())
 		return
 	}
+	if p := d.getProposal(entry); p != nil {
+		p.cb.Done(&raft_cmdpb.RaftCmdResponse{
+			Header: &raft_cmdpb.RaftResponseHeader{},
+			AdminResponse: &raft_cmdpb.AdminResponse{
+				CmdType:    raft_cmdpb.AdminCmdType_ChangePeer,
+				ChangePeer: &raft_cmdpb.ChangePeerResponse{},
+			},
+		})
+	}
+	if d.IsLeader() {
+		d.HeartbeatScheduler(d.ctx.schedulerTaskSender)
+	}
 }
-func (d *peerMsgHandler) addNode(region *metapb.Region, cc *eraftpb.ConfChange, msg raft_cmdpb.RaftCmdRequest, wb *engine_util.WriteBatch) {
+func (d *peerMsgHandler) addNode(region *metapb.Region, cc *eraftpb.ConfChange, msg *raft_cmdpb.RaftCmdRequest, wb *engine_util.WriteBatch) {
 	if searchPeer(region, cc.NodeId) == len(region.Peers) {
 		peer := msg.AdminRequest.ChangePeer.Peer
 		region.Peers = append(region.Peers, peer)
@@ -126,23 +155,18 @@ func (d *peerMsgHandler) addNode(region *metapb.Region, cc *eraftpb.ConfChange, 
 		d.insertPeerCache(peer)
 	}
 }
-func (d *peerMsgHandler) removeNode(region *metapb.Region, cc *eraftpb.ConfChange, msg raft_cmdpb.RaftCmdRequest, wb *engine_util.WriteBatch) {
+func (d *peerMsgHandler) removeNode(region *metapb.Region, cc *eraftpb.ConfChange, wb *engine_util.WriteBatch) {
 	//可以先转换leader
 	if cc.NodeId == d.Meta.Id {
 		d.destroyPeer()
 		return
 	}
-	n := searchPeer(region, cc.NodeId)
-	if n < len(region.Peers) {
-		region.Peers = append(region.Peers[:n], region.Peers[n+1:]...)
-		region.RegionEpoch.ConfVer++
-		meta.WriteRegionState(wb, region, rspb.PeerState_Normal)
-		storeMeta := d.ctx.storeMeta
-		storeMeta.Lock()
-		storeMeta.regions[region.Id] = region
-		storeMeta.Unlock()
-		d.removePeerCache(cc.NodeId)
-	}
+	peer := d.peer.getPeerFromCache(cc.NodeId)
+	util.RemovePeer(region, peer.GetStoreId())
+	region.RegionEpoch.ConfVer++
+	meta.WriteRegionState(wb, region, rspb.PeerState_Normal)
+	d.ctx.storeMeta.regions[region.Id] = region
+	d.removePeerCache(cc.NodeId)
 }
 func searchPeer(region *metapb.Region, id uint64) int {
 	for i, peer := range region.Peers {
@@ -152,7 +176,12 @@ func searchPeer(region *metapb.Region, id uint64) int {
 	}
 	return len(region.Peers)
 }
+func (d *peerMsgHandler) processReq(entry *eraftpb.Entry, msg *raft_cmdpb.RaftCmdRequest, wb *engine_util.WriteBatch) *engine_util.WriteBatch {
+}
 
+func (d *peerMsgHandler) processAdminRequest(entry *eraftpb.Entry, msg *raft_cmdpb.RaftCmdRequest, wb *engine_util.WriteBatch) {
+
+}
 func (d *peerMsgHandler) HandleMsg(msg message.Msg) {
 	switch msg.Type {
 	case message.MsgTypeRaftMessage:
