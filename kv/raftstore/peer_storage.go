@@ -320,7 +320,7 @@ func (ps *PeerStorage) Append(entries []eraftpb.Entry, raftWB *engine_util.Write
 		entries = entries[first-entries[0].Index:]
 	}
 	for _, entry := range entries {
-		err := raftWB.SetMeta(meta.RaftLogKey(ps.region.Id, entry.Index), &eraftpb.Entry{Data: entry.Data})
+		err := raftWB.SetMeta(meta.RaftLogKey(ps.region.Id, entry.Index), &entry)
 		if err != nil {
 			return err
 		}
@@ -362,10 +362,25 @@ func (ps *PeerStorage) SaveReadyState(ready *raft.Ready) (*ApplySnapResult, erro
 	// Your Code Here (2B/2C).
 	entries := ready.Entries
 	raftWB := new(engine_util.WriteBatch)
-	ps.Append(entries, raftWB)
+	kvWB := new(engine_util.WriteBatch)
+	err := ps.Append(entries, raftWB)
+	if err != nil {
+		log.Errorf("SaveReadyState:%s", err.Error())
+		return nil, err
+	}
+	if len(ready.Entries) > 0 && ready.Entries[len(ready.Entries)-1].Index > ps.raftState.LastIndex {
+		ps.raftState.LastIndex = ready.Entries[len(ready.Entries)-1].Index
+		ps.raftState.LastTerm = ready.Entries[len(ready.Entries)-1].Term
+	}
+	if len(ready.CommittedEntries) > 0 {
+		ps.applyState.AppliedIndex = ready.CommittedEntries[len(ready.CommittedEntries)-1].Index
+	}
 	ps.raftState.HardState = &ready.HardState
+
+	kvWB.SetMeta(meta.ApplyStateKey(ps.region.GetId()), ps.applyState)
 	raftWB.SetMeta(meta.RaftStateKey(ps.region.GetId()), ps.raftState)
 	ps.Engines.WriteRaft(raftWB)
+	ps.Engines.WriteKV(raftWB)
 	return nil, nil
 }
 
