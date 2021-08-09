@@ -143,6 +143,9 @@ func (l *RaftLog) LastIndex() uint64 {
 		//return l.offset + uint64(len) - 1
 		return uint64(len)
 	}
+	if l.pendingSnapshot != nil {
+		return l.pendingSnapshot.Metadata.Index
+	}
 	index, err := l.storage.LastIndex()
 	if err != nil {
 		panic(err)
@@ -207,6 +210,9 @@ func (l *RaftLog) entry(lo uint64) ([]*pb.Entry, error) {
 
 func (l *RaftLog) unstableTerm(i uint64) (uint64, bool) {
 	if i < l.offset {
+		if l.pendingSnapshot != nil && l.pendingSnapshot.Metadata.Index == i {
+			return l.pendingSnapshot.Metadata.Term, true
+		}
 		return 0, false
 	}
 

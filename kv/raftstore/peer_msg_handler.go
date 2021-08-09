@@ -178,14 +178,52 @@ func searchPeer(region *metapb.Region, id uint64) int {
 }
 func (d *peerMsgHandler) processReq(entry *eraftpb.Entry, msg *raft_cmdpb.RaftCmdRequest, wb *engine_util.WriteBatch) {
 	req := msg.Requests[0]
+	proposal := d.getProposal(entry)
 	key := d.getKeyFromReq(req)
 	if key != nil {
 		err := util.CheckKeyInRegion(key, d.Region())
 		if err != nil {
-			proposal := d.getProposal(entry)
 			proposal.cb.Done(ErrResp(err))
+			return
 		}
 	}
+	epoch := d.Region().GetRegionEpoch()
+	hdrEpoch := msg.GetHeader().GetRegionEpoch()
+	if epoch.Version != hdrEpoch.Version {
+		err := &util.ErrEpochNotMatch{
+			Regions: []*metapb.Region{d.Region()},
+		}
+		proposal.cb.Done(ErrResp(err))
+		return
+	}
+	resp := &raft_cmdpb.RaftCmdResponse{Header: &raft_cmdpb.RaftResponseHeader{}}
+	switch req.CmdType {
+	case raft_cmdpb.CmdType_Get:
+		//d.peerStorage.applyState.AppliedIndex = entry.Index
+		//wb.SetMeta(meta.ApplyStateKey(d.regionId), d.peerStorage.applyState)
+		//wb.WriteToDB(d.peerStorage.Engines.Kv)
+		value, err := engine_util.GetCF(d.peerStorage.Engines.Kv, req.Get.Cf, req.Get.Key)
+		if err != nil {
+			value = nil
+		}
+		resp.Responses = []*raft_cmdpb.Response{{CmdType: raft_cmdpb.CmdType_Get, Get: &raft_cmdpb.GetResponse{Value: value}}}
+	case raft_cmdpb.CmdType_Put:
+		wb.SetCF(req.Put.Cf, req.Put.Key, req.Put.Value)
+		resp.Responses = []*raft_cmdpb.Response{{CmdType: raft_cmdpb.CmdType_Put, Put: &raft_cmdpb.PutResponse{}}}
+	case raft_cmdpb.CmdType_Delete:
+		wb.DeleteCF(req.Delete.Cf, req.Delete.Key)
+		resp.Responses = []*raft_cmdpb.Response{{CmdType: raft_cmdpb.CmdType_Delete, Delete: &raft_cmdpb.DeleteResponse{}}}
+	case raft_cmdpb.CmdType_Snap:
+		proposal.cb.Txn = d.peerStorage.Engines.Kv.NewTransaction(false)
+		d.peerStorage.applyState.AppliedIndex = entry.Index
+		wb.SetMeta(meta.ApplyStateKey(d.regionId), d.peerStorage.applyState)
+		d.peerStorage.Engines.WriteKV(wb)
+		wb = new(engine_util.WriteBatch)
+		resp.Responses = []*raft_cmdpb.Response{{CmdType: raft_cmdpb.CmdType_Snap, Snap: &raft_cmdpb.SnapResponse{Region: d.Region()}}}
+	}
+	resp.Header.CurrentTerm = msg.GetHeader().GetTerm()
+	proposal.cb.Done(resp)
+
 }
 
 func (d *peerMsgHandler) processAdminReq(entry *eraftpb.Entry, msg *raft_cmdpb.RaftCmdRequest, wb *engine_util.WriteBatch) {
