@@ -176,10 +176,19 @@ func searchPeer(region *metapb.Region, id uint64) int {
 	}
 	return len(region.Peers)
 }
-func (d *peerMsgHandler) processReq(entry *eraftpb.Entry, msg *raft_cmdpb.RaftCmdRequest, wb *engine_util.WriteBatch) *engine_util.WriteBatch {
+func (d *peerMsgHandler) processReq(entry *eraftpb.Entry, msg *raft_cmdpb.RaftCmdRequest, wb *engine_util.WriteBatch) {
+	req := msg.Requests[0]
+	key := d.getKeyFromReq(req)
+	if key != nil {
+		err := util.CheckKeyInRegion(key, d.Region())
+		if err != nil {
+			proposal := d.getProposal(entry)
+			proposal.cb.Done(ErrResp(err))
+		}
+	}
 }
 
-func (d *peerMsgHandler) processAdminRequest(entry *eraftpb.Entry, msg *raft_cmdpb.RaftCmdRequest, wb *engine_util.WriteBatch) {
+func (d *peerMsgHandler) processAdminReq(entry *eraftpb.Entry, msg *raft_cmdpb.RaftCmdRequest, wb *engine_util.WriteBatch) {
 
 }
 func (d *peerMsgHandler) HandleMsg(msg message.Msg) {
