@@ -52,10 +52,10 @@ func (d *peerMsgHandler) HandleRaftReady() {
 		if err != nil {
 			panic(err)
 		}
-		//if rd.Snapshot.GetMetadata() != nil {
-		//	d.ctx.storeMeta.regionRanges.ReplaceOrInsert(&regionItem{region: d.Region()})
-		//	d.SetRegion(d.Region())
-		//}
+		if ready.Snapshot.GetMetadata() != nil {
+			d.ctx.storeMeta.regionRanges.ReplaceOrInsert(&regionItem{region: d.Region()})
+			d.SetRegion(d.Region())
+		}
 
 		//2.send message
 		for _, message := range ready.Messages {
