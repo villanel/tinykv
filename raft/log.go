@@ -86,6 +86,9 @@ func newLog(storage Storage) *RaftLog {
 // grow unlimitedly in memory
 func (l *RaftLog) maybeCompact() {
 	// Your Code Here (2C).
+	if len(l.entries) == 0 {
+		return
+	}
 	sfirst, _ := l.storage.FirstIndex()
 	first := l.entries[0].Index
 	if sfirst > first {
@@ -151,7 +154,7 @@ func (l *RaftLog) LastIndex() uint64 {
 	// Your Code Here (2A).
 	if len := len(l.entries); len != 0 {
 		//return l.offset + uint64(len) - 1
-		return uint64(len)
+		return l.entries[len-1].Index
 	}
 	if l.pendingSnapshot != nil {
 		return l.pendingSnapshot.Metadata.Index
@@ -197,7 +200,7 @@ func (l *RaftLog) entry(lo uint64) ([]*pb.Entry, error) {
 	if lo > l.LastIndex() {
 		return nil, nil
 	}
-	hi := l.LastIndex()
+	//hi := l.LastIndex()
 	var ents []*pb.Entry
 	//if lo < l.offset {
 	//	storedEnts, _ := l.storage.Entries(lo, min(hi, l.offset))
@@ -211,7 +214,7 @@ func (l *RaftLog) entry(lo uint64) ([]*pb.Entry, error) {
 	//			ents = append(ents, &entry)
 	//		}
 	//}
-	entries := l.entries[lo-1 : hi]
+	entries := l.entries[lo-l.entries[0].Index:]
 	for i := 0; i < len(entries); i++ {
 		ents = append(ents, &entries[i])
 	}
@@ -264,7 +267,7 @@ func (l *RaftLog) truncateAndAppend(ents []pb.Entry) {
 		// The log is being truncated to before our current offset
 		// portion, so set the offset and replace the entries
 		l.offset = after
-		l.entries = l.entries[:l.offset-1]
+		l.entries = l.entries[:l.offset-l.entries[0].Index]
 		l.entries = append(l.entries, ents...)
 	default:
 		if after > l.LastIndex() {

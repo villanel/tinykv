@@ -72,6 +72,7 @@ func (d *peerMsgHandler) HandleRaftReady() {
 			d.peerStorage.Engines.WriteKV(kvWB)
 		}
 		//5.advance
+		d.RaftGroup.Advance(ready)
 	}
 }
 func (d *peerMsgHandler) getProposal(entry *eraftpb.Entry) *proposal {

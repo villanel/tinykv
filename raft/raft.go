@@ -202,14 +202,17 @@ func reset(r *Raft) {
 // newRaft return a raft peer with the given config
 func newRaft(c *Config) *Raft {
 	log := newLog(c.Storage)
-	state, _, _ := c.Storage.InitialState()
-	//hardState, confState, _ := c.Storage.InitialState()
+	//state, _, _ := c.Storage.InitialState()
+	hardState, confState, _ := c.Storage.InitialState()
 	//confState.Nodes
 	if err := c.validate(); err != nil {
 		panic(err.Error())
 	}
 	m := make(map[uint64]*Progress)
 	vote := make(map[uint64]bool)
+	if len(c.peers) <= 0 {
+		c.peers = confState.Nodes
+	}
 	for _, j := range c.peers {
 		m[j] = &Progress{Next: 0, Match: None}
 	}
@@ -223,9 +226,9 @@ func newRaft(c *Config) *Raft {
 		RaftLog:          log,
 	}
 	reset(r)
-	r.Vote = state.Vote
-	r.Term = state.Term
-	r.RaftLog.committed = state.Commit
+	r.Vote = hardState.Vote
+	r.Term = hardState.Term
+	r.RaftLog.committed = hardState.Commit
 	//r.RaftLog.committed = state.Commit
 	hi, _ := c.Storage.LastIndex()
 	r.RaftLog.stabled = hi
@@ -480,6 +483,8 @@ func (r *Raft) Step(m pb.Message) error {
 			}
 		case pb.MessageType_MsgPropose:
 			for _, entry := range m.Entries {
+				entry.Term = r.Term
+				entry.Index = r.RaftLog.LastIndex() + 1
 				r.appendEntry(*entry)
 			}
 			for id := range r.Prs {
