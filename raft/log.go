@@ -86,6 +86,13 @@ func newLog(storage Storage) *RaftLog {
 // grow unlimitedly in memory
 func (l *RaftLog) maybeCompact() {
 	// Your Code Here (2C).
+	sfirst, _ := l.storage.FirstIndex()
+	first := l.entries[0].Index
+	if sfirst > first {
+		if len(l.entries) > 0 {
+			l.entries = l.entries[sfirst-first:]
+		}
+	}
 
 }
 
@@ -100,7 +107,8 @@ func (l *RaftLog) unstableEntries() []pb.Entry {
 		return nil
 	}
 
-	entries := l.entries[l.offset-1:]
+	//entries := l.entries[l.offset-1:]
+	entries := l.entries[l.stabled-l.entries[0].Index+1:]
 
 	return entries
 }
@@ -123,7 +131,8 @@ func (l *RaftLog) nextEnts() (ents []pb.Entry) {
 		//	for _, entry := range entries {
 		//		ents = append(ents, entry)
 		//	}
-		for _, entry := range l.entries[lo-1 : hi-1] {
+		//for _, entry := range l.entries[lo-1 : hi-1] {
+		for _, entry := range l.entries[lo-l.entries[0].Index : hi-l.entries[0].Index] {
 			ents = append(ents, entry)
 
 		}

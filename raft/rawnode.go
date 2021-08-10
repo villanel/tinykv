@@ -203,7 +203,6 @@ func (rn *RawNode) Advance(rd Ready) {
 	}
 	rn.Raft.RaftLog.applied += uint64(len(rd.CommittedEntries))
 	rn.Raft.RaftLog.stabled += uint64(len(rd.Entries))
-	rn.Raft.advance(rd)
 	rn.Raft.RaftLog.maybeCompact()
 }
 

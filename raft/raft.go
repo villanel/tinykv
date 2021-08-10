@@ -194,13 +194,16 @@ func reset(r *Raft) {
 		r.Prs[i].Match = 0
 		r.Prs[i].Next = r.RaftLog.LastIndex() + 1
 	}
-	r.Prs[r.id].Match = r.RaftLog.LastIndex()
+	if r.Prs[r.id] != nil {
+		r.Prs[r.id].Match = r.RaftLog.LastIndex()
+	}
 }
 
 // newRaft return a raft peer with the given config
 func newRaft(c *Config) *Raft {
 	log := newLog(c.Storage)
 	state, _, _ := c.Storage.InitialState()
+	//hardState, confState, _ := c.Storage.InitialState()
 	//confState.Nodes
 	if err := c.validate(); err != nil {
 		panic(err.Error())
@@ -222,6 +225,7 @@ func newRaft(c *Config) *Raft {
 	reset(r)
 	r.Vote = state.Vote
 	r.Term = state.Term
+	r.RaftLog.committed = state.Commit
 	//r.RaftLog.committed = state.Commit
 	hi, _ := c.Storage.LastIndex()
 	r.RaftLog.stabled = hi
@@ -384,6 +388,9 @@ func (r *Raft) Step(m pb.Message) error {
 
 	switch m.MsgType {
 	case pb.MessageType_MsgHup:
+		if r.State == StateLeader {
+			break
+		}
 		r.becomeCandidate()
 		res := r.poll(m)
 		switch res {
@@ -519,6 +526,7 @@ func (r *Raft) handleAppendEntries(m pb.Message) {
 			u, _ := r.RaftLog.Term(entry.Index)
 			if u != entry.Term {
 				conIndex = entry.GetIndex()
+				r.RaftLog.stabled = min(r.RaftLog.stabled, entry.Index-1)
 				break
 			}
 		}
