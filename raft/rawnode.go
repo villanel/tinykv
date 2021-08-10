@@ -201,7 +201,10 @@ func (rn *RawNode) Advance(rd Ready) {
 	if !IsEmptyHardState(rd.HardState) {
 		rn.HardState = rd.HardState
 	}
+	rn.Raft.RaftLog.applied += uint64(len(rd.CommittedEntries))
+	rn.Raft.RaftLog.stabled += uint64(len(rd.Entries))
 	rn.Raft.advance(rd)
+	rn.Raft.RaftLog.maybeCompact()
 }
 
 // GetProgress return the the Progress of this node and its peers, if this

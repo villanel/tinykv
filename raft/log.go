@@ -86,6 +86,7 @@ func newLog(storage Storage) *RaftLog {
 // grow unlimitedly in memory
 func (l *RaftLog) maybeCompact() {
 	// Your Code Here (2C).
+
 }
 
 // unstableEntries return all the unstable entries
