@@ -495,14 +495,16 @@ func (r *Raft) Step(m pb.Message) error {
 				progress.Next = m.Index
 				r.sendAppend(m.From)
 			} else {
-				progress := r.Prs[m.From]
-				if progress.MaybeUpdate(m.Index) {
-					if r.maybeCommit() {
-						for id := range r.Prs {
-							if id == r.id {
-								continue
+
+				if progress := r.Prs[m.From]; progress != nil {
+					if progress.MaybeUpdate(m.Index) {
+						if r.maybeCommit() {
+							for id := range r.Prs {
+								if id == r.id {
+									continue
+								}
+								r.sendAppend(id)
 							}
-							r.sendAppend(id)
 						}
 					}
 				}
@@ -657,7 +659,9 @@ func (r *Raft) appendEntry(es ...pb.Entry) {
 		r.RaftLog.entries = append(r.RaftLog.entries, es[i])
 
 	}
-	r.Prs[r.id].MaybeUpdate(r.RaftLog.LastIndex())
+	if progress := r.Prs[r.id]; progress != nil {
+		progress.MaybeUpdate(r.RaftLog.LastIndex())
+	}
 	r.maybeCommit()
 }
 func (pr *Progress) MaybeUpdate(n uint64) bool {
@@ -671,6 +675,9 @@ func (pr *Progress) MaybeUpdate(n uint64) bool {
 }
 func (r *Raft) maybeCommit() bool {
 	n := len(r.Prs)
+	if n == 0 {
+		return true
+	}
 	srt := make([]uint64, n)
 	i := n - 1
 	for _, progress := range r.Prs {
