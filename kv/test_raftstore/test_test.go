@@ -64,6 +64,7 @@ func checkClntAppends(t *testing.T, clnt int, v string, count int) {
 		}
 		off1 := strings.LastIndex(v, wanted)
 		if off1 != off {
+			//println(string(v))
 			t.Fatalf("duplicate element %v in Append result", wanted)
 		}
 		if off <= lastoff {
@@ -218,6 +219,7 @@ func GenericTest(t *testing.T, part string, nclients int, unreliable bool, crash
 			for atomic.LoadInt32(&done_clients) == 0 {
 				if (rand.Int() % 1000) < 500 {
 					key := strconv.Itoa(cli) + " " + fmt.Sprintf("%08d", j)
+					println(len(key))
 					value := "x " + strconv.Itoa(cli) + " " + strconv.Itoa(j) + " y"
 					// log.Infof("%d: client new put %v,%v\n", cli, key, value)
 					cluster.MustPut([]byte(key), []byte(value))
@@ -227,7 +229,10 @@ func GenericTest(t *testing.T, part string, nclients int, unreliable bool, crash
 					start := strconv.Itoa(cli) + " " + fmt.Sprintf("%08d", 0)
 					end := strconv.Itoa(cli) + " " + fmt.Sprintf("%08d", j)
 					// log.Infof("%d: client new scan %v-%v\n", cli, start, end)
+					//value := cluster.Scan([]byte(start), []byte(end))
+					//s := string(bytes.Join(value, []byte("")))
 					values := cluster.Scan([]byte(start), []byte(end))
+					//println(s)
 					v := string(bytes.Join(values, []byte("")))
 					if v != last {
 						log.Fatalf("get wrong value, client %v\nwant:%v\ngot: %v\n", cli, last, v)

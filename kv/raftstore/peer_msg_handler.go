@@ -178,7 +178,13 @@ func searchPeer(region *metapb.Region, id uint64) int {
 	return len(region.Peers)
 }
 func (d *peerMsgHandler) processReq(entry *eraftpb.Entry, msg *raft_cmdpb.RaftCmdRequest, wb *engine_util.WriteBatch) {
+	if msg==nil{
+		return
+	}
 	req := msg.Requests[0]
+	if req==nil{
+		return
+	}
 	proposal := d.getProposal(entry)
 	key := d.getKeyFromReq(req)
 	if key != nil {
@@ -202,6 +208,9 @@ func (d *peerMsgHandler) processReq(entry *eraftpb.Entry, msg *raft_cmdpb.RaftCm
 	resp.Header = new(raft_cmdpb.RaftResponseHeader)
 	switch req.CmdType {
 	case raft_cmdpb.CmdType_Get:
+		if proposal == nil {
+			return
+		}
 		//d.peerStorage.applyState.AppliedIndex = entry.Index
 		//wb.SetMeta(meta.ApplyStateKey(d.regionId), d.peerStorage.applyState)
 		//wb.WriteToDB(d.peerStorage.Engines.Kv)
@@ -211,12 +220,28 @@ func (d *peerMsgHandler) processReq(entry *eraftpb.Entry, msg *raft_cmdpb.RaftCm
 		}
 		resp.Responses = []*raft_cmdpb.Response{{CmdType: raft_cmdpb.CmdType_Get, Get: &raft_cmdpb.GetResponse{Value: value}}}
 	case raft_cmdpb.CmdType_Put:
+		s := string(req.Put.Key)
+		b:=string(req.Put.Value)
+		println("s:"+s)
+		println("b:"+b)
+		wb.DeleteCF(req.Put.Cf, req.Put.Key)
 		wb.SetCF(req.Put.Cf, req.Put.Key, req.Put.Value)
+		//d.peerStorage.Engines.WriteKV(wb)
+		//wb = new(engine_util.WriteBatch)
+		if proposal == nil {
+			return
+		}
 		resp.Responses = []*raft_cmdpb.Response{{CmdType: raft_cmdpb.CmdType_Put, Put: &raft_cmdpb.PutResponse{}}}
 	case raft_cmdpb.CmdType_Delete:
 		wb.DeleteCF(req.Delete.Cf, req.Delete.Key)
+		if proposal == nil {
+			return
+		}
 		resp.Responses = []*raft_cmdpb.Response{{CmdType: raft_cmdpb.CmdType_Delete, Delete: &raft_cmdpb.DeleteResponse{}}}
 	case raft_cmdpb.CmdType_Snap:
+		if proposal == nil {
+			return
+		}
 		proposal.cb.Txn = d.peerStorage.Engines.Kv.NewTransaction(false)
 		d.peerStorage.applyState.AppliedIndex = entry.Index
 		wb.SetMeta(meta.ApplyStateKey(d.regionId), d.peerStorage.applyState)

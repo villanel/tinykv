@@ -376,6 +376,11 @@ func (c *Cluster) Scan(start, end []byte) [][]byte {
 				break
 			}
 			value, err := iter.Item().ValueCopy(nil)
+			//s3 := iter.Item().Key()
+			//println(s3)
+			//s := string(iter.Item().Key())
+			//s2 := string(value)
+			//println("k+v"+s+""+s2)
 			if err != nil {
 				panic(err)
 			}
