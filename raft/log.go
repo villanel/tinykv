@@ -234,7 +234,8 @@ func (l *RaftLog) unstableTerm(i uint64) (uint64, bool) {
 		return 0, false
 	}
 
-	return l.entries[i-1].Term, true
+	return l.entries[i-l.entries[0].Index].Term, true
+
 }
 func (l *RaftLog) findConflictByTerm(index uint64, term uint64) uint64 {
 	if li := l.LastIndex(); index > li {
@@ -267,7 +268,9 @@ func (l *RaftLog) truncateAndAppend(ents []pb.Entry) {
 		// The log is being truncated to before our current offset
 		// portion, so set the offset and replace the entries
 		l.offset = after
-		l.entries = l.entries[:l.offset-l.entries[0].Index]
+		if len(l.entries) != 0 {
+			l.entries = l.entries[:l.offset-l.entries[0].Index]
+		}
 		l.entries = append(l.entries, ents...)
 	default:
 		if after > l.LastIndex() {

@@ -197,7 +197,9 @@ func (d *peerMsgHandler) processReq(entry *eraftpb.Entry, msg *raft_cmdpb.RaftCm
 		proposal.cb.Done(ErrResp(err))
 		return
 	}
-	resp := &raft_cmdpb.RaftCmdResponse{Header: &raft_cmdpb.RaftResponseHeader{}}
+	//resp := &raft_cmdpb.RaftCmdResponse{Header: &raft_cmdpb.RaftResponseHeader{}}
+	resp := new(raft_cmdpb.RaftCmdResponse)
+	resp.Header = new(raft_cmdpb.RaftResponseHeader)
 	switch req.CmdType {
 	case raft_cmdpb.CmdType_Get:
 		//d.peerStorage.applyState.AppliedIndex = entry.Index
@@ -224,7 +226,7 @@ func (d *peerMsgHandler) processReq(entry *eraftpb.Entry, msg *raft_cmdpb.RaftCm
 	}
 	resp.Header.CurrentTerm = msg.GetHeader().GetTerm()
 	proposal.cb.Done(resp)
-
+	return
 }
 
 func (d *peerMsgHandler) processAdminReq(entry *eraftpb.Entry, msg *raft_cmdpb.RaftCmdRequest, wb *engine_util.WriteBatch) {
