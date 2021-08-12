@@ -69,7 +69,10 @@ func (d *peerMsgHandler) HandleRaftReady() {
 				entry := &ready.CommittedEntries[i]
 				d.process(entry, kvWB)
 			}
-			d.peerStorage.Engines.WriteKV(kvWB)
+			err := d.peerStorage.Engines.WriteKV(kvWB)
+			if err != nil {
+				return
+			}
 		}
 		//5.advance
 		d.RaftGroup.Advance(ready)
@@ -178,11 +181,11 @@ func searchPeer(region *metapb.Region, id uint64) int {
 	return len(region.Peers)
 }
 func (d *peerMsgHandler) processReq(entry *eraftpb.Entry, msg *raft_cmdpb.RaftCmdRequest, wb *engine_util.WriteBatch) {
-	if msg==nil{
+	if msg == nil {
 		return
 	}
 	req := msg.Requests[0]
-	if req==nil{
+	if req == nil {
 		return
 	}
 	proposal := d.getProposal(entry)
@@ -220,13 +223,17 @@ func (d *peerMsgHandler) processReq(entry *eraftpb.Entry, msg *raft_cmdpb.RaftCm
 		}
 		resp.Responses = []*raft_cmdpb.Response{{CmdType: raft_cmdpb.CmdType_Get, Get: &raft_cmdpb.GetResponse{Value: value}}}
 	case raft_cmdpb.CmdType_Put:
-		s := string(req.Put.Key)
-		b:=string(req.Put.Value)
-		println("s:"+s)
-		println("b:"+b)
-		wb.DeleteCF(req.Put.Cf, req.Put.Key)
-		wb.SetCF(req.Put.Cf, req.Put.Key, req.Put.Value)
-		//d.peerStorage.Engines.WriteKV(wb)
+		//wb.DeleteCF(req.Put.Cf, req.Put.Key)
+		//s := string(req.Put.Key)
+		//s2 := string(req.Put.Value)
+		//println("raw:   "+s+""+s2)
+
+		wb.SetCF(req.Put.GetCf(), req.Put.GetKey(), req.Put.GetValue())
+
+		//err := d.peerStorage.Engines.WriteKV(wb)
+		//if err != nil {
+		//	return
+		//}
 		//wb = new(engine_util.WriteBatch)
 		if proposal == nil {
 			return
@@ -243,10 +250,10 @@ func (d *peerMsgHandler) processReq(entry *eraftpb.Entry, msg *raft_cmdpb.RaftCm
 			return
 		}
 		proposal.cb.Txn = d.peerStorage.Engines.Kv.NewTransaction(false)
-		d.peerStorage.applyState.AppliedIndex = entry.Index
-		wb.SetMeta(meta.ApplyStateKey(d.regionId), d.peerStorage.applyState)
-		d.peerStorage.Engines.WriteKV(wb)
-		wb = new(engine_util.WriteBatch)
+		//d.peerStorage.applyState.AppliedIndex = entry.Index
+		//wb.SetMeta(meta.ApplyStateKey(d.regionId), d.peerStorage.applyState)
+		//d.peerStorage.Engines.WriteKV(wb)
+		//wb = new(engine_util.WriteBatch)
 		resp.Responses = []*raft_cmdpb.Response{{CmdType: raft_cmdpb.CmdType_Snap, Snap: &raft_cmdpb.SnapResponse{Region: d.Region()}}}
 	}
 	resp.Header.CurrentTerm = msg.GetHeader().GetTerm()

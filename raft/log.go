@@ -73,12 +73,20 @@ func newLog(storage Storage) *RaftLog {
 	if err != nil {
 		panic(err) // TODO(bdarnell)
 	}
-	log.offset = lastIndex + 1
 	log.committed = firstIndex - 1
 	log.applied = firstIndex - 1
+	log.stabled = lastIndex
+	//storage not empty
+	if lastIndex >= firstIndex {
+		ents, err := storage.Entries(firstIndex, lastIndex+1)
+		if err != nil {
+			panic(err)
+		}
+		log.entries = make([]pb.Entry, len(ents))
+		copy(log.entries, ents)
+	}
 
 	return log
-	return nil
 }
 
 // We need to compact the log entries in some point of time like
@@ -190,10 +198,15 @@ func (l *RaftLog) Term(i uint64) (uint64, error) {
 	if err == nil {
 		return t, nil
 	}
-	if err == ErrCompacted || err == ErrUnavailable {
-		return 0, err
+	if err == ErrUnavailable && !IsEmptySnap(l.pendingSnapshot) {
+		if i == l.pendingSnapshot.Metadata.Index {
+			t = l.pendingSnapshot.Metadata.Term
+			err = nil
+		} else if i < l.pendingSnapshot.Metadata.Index {
+			err = ErrCompacted
+		}
 	}
-	panic(err)
+	return t, err
 }
 
 func (l *RaftLog) entry(lo uint64) ([]*pb.Entry, error) {
@@ -222,20 +235,10 @@ func (l *RaftLog) entry(lo uint64) ([]*pb.Entry, error) {
 }
 
 func (l *RaftLog) unstableTerm(i uint64) (uint64, bool) {
-	if i < l.offset {
-		if l.pendingSnapshot != nil && l.pendingSnapshot.Metadata.Index == i {
-			return l.pendingSnapshot.Metadata.Term, true
-		}
-		return 0, false
+	if len(l.entries) > 0 && i >= l.entries[0].Index {
+		return l.entries[i-l.entries[0].Index].Term, true
 	}
-
-	last := l.LastIndex()
-	if i > last {
-		return 0, false
-	}
-
-	return l.entries[i-l.entries[0].Index].Term, true
-
+	return 0, false
 }
 func (l *RaftLog) findConflictByTerm(index uint64, term uint64) uint64 {
 	if li := l.LastIndex(); index > li {
@@ -264,12 +267,20 @@ func (l *RaftLog) truncateAndAppend(ents []pb.Entry) {
 		// after is the next index in the u.entries
 		// directly append
 		l.entries = append(l.entries, ents...)
-	case after <= l.offset:
+	//case after <= l.offset:
+	//	// The log is being truncated to before our current offset
+	//	// portion, so set the offset and replace the entries
+	//	l.offset = after
+	//	if len(l.entries) != 0 {
+	//		l.entries = l.entries[:l.offset-l.entries[0].Index]
+	//	}
+	//	l.entries = append(l.entries, ents...)
+	case after <= l.stabled:
 		// The log is being truncated to before our current offset
 		// portion, so set the offset and replace the entries
-		l.offset = after
+		l.stabled = after
 		if len(l.entries) != 0 {
-			l.entries = l.entries[:l.offset-l.entries[0].Index]
+			l.entries = l.entries[:l.stabled-l.entries[0].Index]
 		}
 		l.entries = append(l.entries, ents...)
 	default:
@@ -279,7 +290,7 @@ func (l *RaftLog) truncateAndAppend(ents []pb.Entry) {
 		} else {
 			// truncate to after and copy to u.entries
 			// then append
-			l.entries = append([]pb.Entry{}, l.entries[0:after-l.offset]...)
+			l.entries = append([]pb.Entry{}, l.entries[0:after-l.entries[0].Index]...)
 			l.entries = append(l.entries, ents...)
 		}
 	}

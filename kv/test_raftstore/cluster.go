@@ -380,7 +380,7 @@ func (c *Cluster) Scan(start, end []byte) [][]byte {
 			//println(s3)
 			//s := string(iter.Item().Key())
 			//s2 := string(value)
-			//println("k+v"+s+""+s2)
+			//println("k+v    "+s+""+s2)
 			if err != nil {
 				panic(err)
 			}

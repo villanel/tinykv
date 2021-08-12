@@ -233,12 +233,12 @@ func newRaft(c *Config) *Raft {
 	hi, _ := c.Storage.LastIndex()
 	r.RaftLog.stabled = hi
 	//r.RaftLog.committed =hi
-	lo, _ := c.Storage.FirstIndex()
-	entries, err := c.Storage.Entries(lo, hi+1)
-	if err != nil {
-		panic(err)
-	}
-	r.RaftLog.entries = append(r.RaftLog.entries, entries...)
+	//lo, _ := c.Storage.FirstIndex()
+	//entries, err := c.Storage.Entries(lo, hi+1)
+	//if err != nil {
+	//	panic(err)
+	//}
+	//r.RaftLog.entries = append(r.RaftLog.entries, entries...)
 
 	return r
 }
