@@ -16,6 +16,10 @@ import (
 const RaftInvalidIndex uint64 = 0
 const InvalidID uint64 = 0
 
+func IsHeartbeatMsg(mt eraftpb.MessageType) bool {
+	return (mt == eraftpb.MessageType_MsgHeartbeatResponse || mt == eraftpb.MessageType_MsgHeartbeat)
+}
+
 /// `is_initial_msg` checks whether the `msg` can be used to initialize a new peer or not.
 // There could be two cases:
 // 1. Target peer already exists but has not established communication with leader yet

@@ -60,7 +60,12 @@ func (d *peerMsgHandler) HandleRaftReady() {
 		//2.send message
 		for _, message := range ready.Messages {
 
-			d.sendRaftMessage(message, d.ctx.trans)
+			err := d.sendRaftMessage(message, d.ctx.trans)
+			if !util.IsHeartbeatMsg(message.GetMsgType()) {
+				if err != nil {
+					log.Infof("%s '%d->%d' msg(%v)error:%v", d.Tag, message.GetFrom(), message.GetTo(), message.GetMsgType(), err)
+				}
+			}
 		}
 		//4.apply
 		if len(ready.CommittedEntries) != 0 {

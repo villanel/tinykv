@@ -16,8 +16,11 @@ package raft
 
 import (
 	"errors"
+	"fmt"
+	"github.com/pingcap-incubator/tinykv/log"
 	pb "github.com/pingcap-incubator/tinykv/proto/pkg/eraftpb"
 	"math/rand"
+	"strings"
 	"sync"
 	"time"
 )
@@ -328,6 +331,7 @@ func (r *Raft) tick() {
 		r.electionElapsed++
 		if r.heartbeatElapsed >= r.heartbeatTimeout {
 			r.heartbeatElapsed = 0
+			r.electionElapsed = 0
 			err2 := r.Step(pb.Message{From: r.id, MsgType: pb.MessageType_MsgBeat})
 			if err2 != nil {
 				return
@@ -347,7 +351,9 @@ func (r *Raft) becomeFollower(term uint64, lead uint64) {
 	r.Vote = None
 	r.Lead = lead
 	r.heartbeatElapsed = 0
-	r.heartbeatElapsed = 0
+	r.electionElapsed = 0
+	log.Infof("%d become to follower(%d) vote(%d) lastIndex(%d)", r.id, r.Term, lead, r.RaftLog.LastIndex())
+
 }
 
 // becomeCandidate transform this peer's state to candidate
@@ -358,8 +364,10 @@ func (r *Raft) becomeCandidate() {
 	r.Term += 1
 	r.Vote = r.id
 	r.heartbeatElapsed = 0
-	r.heartbeatElapsed = 0
+	r.electionElapsed = 0
 	// Your Code Here (2A).
+	log.Infof("%d goto election(%d)last=%d; %s", r.id, r.Term, r.RaftLog.LastIndex(), r.prs2string())
+
 }
 
 // becomeLeader transform this peer's state to leader
@@ -368,9 +376,10 @@ func (r *Raft) becomeLeader() {
 	r.Lead = r.id
 	r.State = StateLeader
 	r.heartbeatElapsed = 0
-	r.heartbeatElapsed = 0
+	r.electionElapsed = 0
 	emptyEnt := pb.Entry{Data: nil}
 	r.appendEntry(emptyEnt)
+	log.Infof("%d become to leader: term(%d)index(%d)", r.id, r.Term, r.RaftLog.LastIndex())
 
 	// Your Code Here (2A).
 	// NOTE: Leader should propose a noop entry on its term
@@ -395,9 +404,7 @@ func (r *Raft) Step(m pb.Message) error {
 			break
 		}
 		r.becomeCandidate()
-		res := r.poll(m)
-		switch res {
-		case VoteWon:
+		if len(r.Prs) == 1 {
 			r.becomeLeader()
 			for id := range r.Prs {
 				if id == r.id {
@@ -405,7 +412,20 @@ func (r *Raft) Step(m pb.Message) error {
 				}
 				r.sendAppend(id)
 			}
+			return nil
 		}
+		//res := r.poll(m)
+		//switch res {
+		//case VoteWon:
+		//	r.becomeLeader()
+		//	for id := range r.Prs {
+		//		if id == r.id {
+		//			continue
+		//		}
+		//		r.sendAppend(id)
+		//	}
+		//	return nil
+		//}
 		for u, _ := range r.Prs {
 			if r.id == u {
 				continue
@@ -417,13 +437,15 @@ func (r *Raft) Step(m pb.Message) error {
 			r.msgs = append(r.msgs, pb.Message{From: r.id, To: u, Term: r.Term, MsgType: pb.MessageType_MsgRequestVote, Index: r.RaftLog.LastIndex(), LogTerm: term})
 		}
 	case pb.MessageType_MsgRequestVote:
+		//lastIndex := r.RaftLog.LastIndex()
+		//lastLogTerm, _ := r.RaftLog.Term(lastIndex)
 		canvote := r.Vote == m.From ||
 			// ...we haven't voted and we don't think there's a leader yet in this term...
-			(r.Vote == None && r.Lead == None) ||
+			(r.Vote == None && r.Lead == None)
 			// ...or this is a PreVote for a future term...
-			(m.Term > r.Term)
 		if canvote && r.RaftLog.isUpToDate(m.Index, m.LogTerm) {
 			r.msgs = append(r.msgs, pb.Message{From: r.id, To: m.From, Term: m.Term, MsgType: pb.MessageType_MsgRequestVoteResponse})
+			log.Debugf("%d vote %d-> %d for term(%d->%d)", r.id, r.Vote, m.From, r.Term, m.Term)
 			r.electionElapsed = 0
 			r.Vote = m.From
 		} else {
@@ -627,22 +649,29 @@ func (r *Raft) removeNode(id uint64) {
 	// Your Code Here (3A).
 }
 func (r *Raft) poll(m pb.Message) VoteResult {
+	if m.Term != None && m.Term < r.Term {
+		return VotePending
+	}
+	if !m.Reject {
+		log.Infof("%d get vote from %d", r.id, m.From)
+
+	}
 	r.votes[m.From] = !m.Reject
-	if len(r.votes) >= len(r.Prs)/2+1 {
-		agg := 0
-		for _, b := range r.votes {
-			if b == true {
-				agg++
-			}
-		}
-		if agg >= len(r.Prs)/2+1 {
-			return VoteWon
-		} else if len(r.votes) < len(r.Prs) {
-			return VotePending
-		} else {
-			return VoteLost
+	//if len(r.votes) >= len(r.Prs)/2+1 {
+	agg := 0
+	for _, b := range r.votes {
+		if b == true {
+			agg++
 		}
 	}
+	if agg > len(r.Prs)/2 {
+		return VoteWon
+	} else if len(r.votes)-agg > (len(r.Prs) / 2) {
+		return VoteLost
+	} else {
+		return VotePending
+	}
+	//}
 	return VotePending
 }
 func (r *Raft) reset() {
@@ -725,4 +754,14 @@ func (r *Raft) advance(rd Ready) {
 func (l *RaftLog) hasNextEnts() bool {
 	off := max(l.applied+1, l.FirstIndex())
 	return l.committed+1 > off
+}
+
+func (r *Raft) prs2string() string {
+	var builder strings.Builder
+	builder.WriteString(fmt.Sprintf("Prs(%d){", len(r.Prs)))
+	for id, pr := range r.Prs {
+		builder.WriteString(fmt.Sprintf("%d:{%d,%d},", id, pr.Match, pr.Next))
+	}
+	builder.WriteByte('}')
+	return builder.String()
 }

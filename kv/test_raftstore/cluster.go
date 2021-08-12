@@ -156,6 +156,7 @@ func (c *Cluster) AddFilter(filter Filter) {
 }
 
 func (c *Cluster) ClearFilters() {
+	log.Infof("ClearFilters")
 	c.simulator.ClearFilters()
 }
 
@@ -209,6 +210,8 @@ func (c *Cluster) CallCommandOnLeader(request *raft_cmdpb.RaftCmdRequest, timeou
 	startTime := time.Now()
 	regionID := request.Header.RegionId
 	leader := c.LeaderOfRegion(regionID)
+	log.Infof("put to leader %d values %s", leader.GetId(), request.String())
+
 	for {
 		if time.Now().Sub(startTime) > timeout {
 			return nil, nil
