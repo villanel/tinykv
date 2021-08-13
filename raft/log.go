@@ -129,7 +129,7 @@ func (l *RaftLog) unstableEntries() []pb.Entry {
 // nextEnts returns all the committed but not applied entries
 func (l *RaftLog) nextEnts() (ents []pb.Entry) {
 	if len(l.entries) > 0 {
-		return l.entries[l.applied-l.FirstIndex+1 : l.committed-l.FirstIndex+1]
+		return l.entries[l.applied-l.entries[0].Index+1 : l.committed-l.entries[0].Index+1]
 	}
 	return nil
 
@@ -192,43 +192,28 @@ func (l *RaftLog) firstIndex() uint64 {
 
 // Term return the term of the entry in the given index
 func (l *RaftLog) Term(i uint64) (uint64, error) {
-	// Your Code Here (2A).
 
-	if len(l.entries) > 0 && i >= l.FirstIndex {
-		return l.entries[i-l.entries[0].Index].Term, nil
+	dummyIndex := l.firstIndex() - 1
+	if i < dummyIndex || i > l.LastIndex() {
+		return 0, nil
 	}
-	term, err := l.storage.Term(i)
+	if t, ok := l.unstableTerm(i); ok {
+		return t, nil
+	}
+
+	t, err := l.storage.Term(i)
+	if err == nil {
+		return t, nil
+	}
 	if err == ErrUnavailable && !IsEmptySnap(l.pendingSnapshot) {
 		if i == l.pendingSnapshot.Metadata.Index {
-			term = l.pendingSnapshot.Metadata.Term
+			t = l.pendingSnapshot.Metadata.Term
 			err = nil
 		} else if i < l.pendingSnapshot.Metadata.Index {
 			err = ErrCompacted
 		}
 	}
-	return term, err
-
-	//dummyIndex := l.FirstIndex() - 1
-	//if i < dummyIndex || i > l.LastIndex() {
-	//	return 0, nil
-	//}
-	//if t, ok := l.unstableTerm(i); ok {
-	//	return t, nil
-	//}
-	//
-	//t, err := l.storage.Term(i)
-	//if err == nil {
-	//	return t, nil
-	//}
-	//if err == ErrUnavailable && !IsEmptySnap(l.pendingSnapshot) {
-	//	if i == l.pendingSnapshot.Metadata.Index {
-	//		t = l.pendingSnapshot.Metadata.Term
-	//		err = nil
-	//	} else if i < l.pendingSnapshot.Metadata.Index {
-	//		err = ErrCompacted
-	//	}
-	//}
-	//return t, err
+	return t, err
 }
 
 func (l *RaftLog) entry(lo uint64) ([]*pb.Entry, error) {
@@ -333,7 +318,7 @@ func (l *RaftLog) toSliceIndex(i uint64) int {
 	}
 	idx := int(i - index)
 	if idx < 0 {
-		panic("toSliceIndex: index < 0")
+		panic("toSliceIndex: index < 0" + string(idx))
 	}
 	return idx
 }

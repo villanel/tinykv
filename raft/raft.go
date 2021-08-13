@@ -250,7 +250,7 @@ func newRaft(c *Config) *Raft {
 // sendAppend sends an append RPC with new entries (if any) and the
 // current commit index to the given peer. Returns true if a message was sent.
 func (r *Raft) sendAppend(to uint64) bool {
-	// Your Code Here (2A).
+
 	progress := r.Prs[to]
 	m := pb.Message{}
 	m.To = to
@@ -263,6 +263,11 @@ func (r *Raft) sendAppend(to uint64) bool {
 		}
 		panic(err)
 	}
+	//var entries []*pb.Entry
+	//n := len(r.RaftLog.entries)
+	//for i := r.RaftLog.toSliceIndex(r.Prs[to].Next); i < n; i++ {
+	//	entries = append(entries, &r.RaftLog.entries[i])
+	//}
 	ents, _ := r.RaftLog.entry(progress.Next)
 	m.MsgType = pb.MessageType_MsgAppend
 	m.Index = progress.Next - 1
@@ -440,18 +445,18 @@ func (r *Raft) Step(m pb.Message) error {
 		}
 	case pb.MessageType_MsgRequestVote:
 
-		r.handleRequestVote(m)
+		//r.handleRequestVote(m)
 
-		//canvote := r.Vote == m.From ||
-		//	(r.Vote == None && r.Lead == None)
-		//if canvote && r.RaftLog.isUpToDate(m.Index, m.LogTerm) {
-		//	r.msgs = append(r.msgs, pb.Message{From: r.id, To: m.From, Term: m.Term, MsgType: pb.MessageType_MsgRequestVoteResponse})
-		//	log.Debugf("%d vote %d-> %d for term(%d->%d)", r.id, r.Vote, m.From, r.Term, m.Term)
-		//	r.electionElapsed = 0
-		//	r.Vote = m.From
-		//} else {
-		//	r.msgs = append(r.msgs, pb.Message{From: r.id, To: m.From, Term: m.Term, MsgType: pb.MessageType_MsgRequestVoteResponse, Reject: true})
-		//}
+		canvote := r.Vote == m.From ||
+			(r.Vote == None && r.Lead == None)
+		if canvote && r.RaftLog.isUpToDate(m.Index, m.LogTerm) {
+			r.msgs = append(r.msgs, pb.Message{From: r.id, To: m.From, Term: m.Term, MsgType: pb.MessageType_MsgRequestVoteResponse})
+			log.Debugf("%d vote %d-> %d for term(%d->%d)", r.id, r.Vote, m.From, r.Term, m.Term)
+			r.electionElapsed = 0
+			r.Vote = m.From
+		} else {
+			r.msgs = append(r.msgs, pb.Message{From: r.id, To: m.From, Term: m.Term, MsgType: pb.MessageType_MsgRequestVoteResponse, Reject: true})
+		}
 	}
 	switch r.State {
 	case StateFollower:
@@ -463,7 +468,6 @@ func (r *Raft) Step(m pb.Message) error {
 		case pb.MessageType_MsgAppend:
 			r.electionElapsed = 0
 			r.Lead = m.From
-			r.Term = m.Term
 			r.handleAppendEntries(m)
 		case pb.MessageType_MsgHeartbeat:
 			r.electionElapsed = 0
@@ -527,28 +531,28 @@ func (r *Raft) Step(m pb.Message) error {
 				r.sendAppend(id)
 			}
 		case pb.MessageType_MsgAppendResponse:
-			r.handleAppendEntriesResponse(m)
+			//r.handleAppendEntriesResponse(m)
 
-			//if m.Reject {
-			//	progress := r.Prs[m.From]
-			//	//println(progress.Next)
-			//	progress.Next = m.Index
-			//	r.sendAppend(m.From)
-			//} else {
-			//
-			//	if progress := r.Prs[m.From]; progress != nil {
-			//		if progress.MaybeUpdate(m.Index) {
-			//			if r.maybeCommit() {
-			//				for id := range r.Prs {
-			//					if id == r.id {
-			//						continue
-			//					}
-			//					r.sendAppend(id)
-			//				}
-			//			}
-			//		}
-			//	}
-			//}
+			if m.Reject {
+				progress := r.Prs[m.From]
+				//println(progress.Next)
+				progress.Next = m.Index
+				r.sendAppend(m.From)
+			} else {
+
+				if progress := r.Prs[m.From]; progress != nil {
+					if progress.MaybeUpdate(m.Index) {
+						if r.maybeCommit() {
+							for id := range r.Prs {
+								if id == r.id {
+									continue
+								}
+								r.sendAppend(id)
+							}
+						}
+					}
+				}
+			}
 		}
 	}
 	return nil
@@ -799,7 +803,7 @@ func (r *Raft) maybeCommit() bool {
 	commitind := srt[n-(n/2+1)]
 	term, err := r.RaftLog.Term(commitind)
 	if err != nil {
-		panic(err)
+		log.Error(err)
 	}
 	if commitind > r.RaftLog.committed && term == r.Term {
 		r.RaftLog.committed = commitind
