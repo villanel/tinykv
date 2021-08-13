@@ -324,8 +324,9 @@ func (ps *PeerStorage) Append(entries []eraftpb.Entry, raftWB *engine_util.Write
 		if err != nil {
 			return err
 		}
-		ps.raftState.LastIndex = entry.Index
 	}
+	ps.raftState.LastIndex = last
+	ps.raftState.LastTerm = entries[len(entries)-1].Term
 	//ps.Engines.
 	//switch {
 	//case uint64(len(ms.ents)) > offset:
@@ -404,13 +405,18 @@ func (ps *PeerStorage) SaveReadyState(ready *raft.Ready) (*ApplySnapResult, erro
 	if len(ready.CommittedEntries) > 0 {
 		ps.applyState.AppliedIndex = ready.CommittedEntries[len(ready.CommittedEntries)-1].Index
 	}
-	ps.raftState.HardState = &ready.HardState
-
+	if !raft.IsEmptyHardState(ready.HardState) {
+		ps.raftState.HardState = &ready.HardState
+	}
+	var result *ApplySnapResult
+	if !raft.IsEmptySnap(&ready.Snapshot) {
+		result, _ = ps.ApplySnapshot(&ready.Snapshot, kvWB, raftWB)
+	}
 	kvWB.SetMeta(meta.ApplyStateKey(ps.region.GetId()), ps.applyState)
 	raftWB.SetMeta(meta.RaftStateKey(ps.region.GetId()), ps.raftState)
 	ps.Engines.WriteRaft(raftWB)
-	ps.Engines.WriteKV(raftWB)
-	return nil, nil
+	ps.Engines.WriteKV(kvWB)
+	return result, nil
 }
 
 func (ps *PeerStorage) ClearData() {
