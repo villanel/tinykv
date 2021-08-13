@@ -1697,16 +1697,3 @@ func newTestConfig(id uint64, peers []uint64, election, heartbeat int, storage S
 func newTestRaft(id uint64, peers []uint64, election, heartbeat int, storage Storage) *Raft {
 	return newRaft(newTestConfig(id, peers, election, heartbeat, storage))
 }
-
-func (l *RaftLog) stableTo(i, t uint64) {
-	gt, ok := l.Term(i)
-	if ok != nil {
-		return
-	}
-	// if i < offset, term is matched with the snapshot
-	// only update the unstable entries if term is matched with
-	// an unstable entry.
-	if gt == t && i >= l.offset {
-		l.offset = i + 1
-	}
-}

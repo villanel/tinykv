@@ -196,6 +196,7 @@ func (c *Cluster) Request(key []byte, reqs []*raft_cmdpb.Request, timeout time.D
 			SleepMS(100)
 			continue
 		}
+		log.Infof("put %s successful", reqs[0].String())
 		return resp, txn
 	}
 	panic("request timeout")
