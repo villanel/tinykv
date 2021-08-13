@@ -28,6 +28,7 @@ import "log"
 // for simplify the RaftLog implement should manage all log entries
 // that not truncated
 type RaftLog struct {
+	FirstIndex uint64
 	// storage contains all stable entries since the last snapshot.
 	storage Storage
 
@@ -66,6 +67,7 @@ func newLog(storage Storage) *RaftLog {
 		storage: storage,
 	}
 	firstIndex, err := storage.FirstIndex()
+	log.FirstIndex, _ = storage.FirstIndex()
 	if err != nil {
 		panic(err) // TODO(bdarnell)
 	}
@@ -126,29 +128,34 @@ func (l *RaftLog) unstableEntries() []pb.Entry {
 
 // nextEnts returns all the committed but not applied entries
 func (l *RaftLog) nextEnts() (ents []pb.Entry) {
-	off := max(l.applied+1, l.FirstIndex())
-	if l.committed+1 > off {
-		hi := l.committed + 1
-		lo := off
-		var ents []pb.Entry
-		//if lo < l.offset {
-		//	storedEnts, _ := l.storage.Entries(lo, min(hi, l.offset))
-		//	for _, ent := range storedEnts {
-		//		ents = append(ents, ent)
-		//	}
-		//}
-		//if hi >l.offset{
-		//	entries := l.entries[max(lo, l.offset)-l.offset:hi-l.offset]
-		//	for _, entry := range entries {
-		//		ents = append(ents, entry)
-		//	}
-		//for _, entry := range l.entries[lo-1 : hi-1] {
-		for _, entry := range l.entries[lo-l.entries[0].Index : hi-l.entries[0].Index] {
-			ents = append(ents, entry)
-
-		}
-		return ents
+	if len(l.entries) > 0 {
+		return l.entries[l.applied-l.FirstIndex+1 : l.committed-l.FirstIndex+1]
 	}
+	return nil
+
+	//off := max(l.applied+1, l.FirstIndex())
+	//if l.committed+1 > off {
+	//	hi := l.committed + 1
+	//	lo := off
+	//	var ents []pb.Entry
+	//	//if lo < l.offset {
+	//	//	storedEnts, _ := l.storage.Entries(lo, min(hi, l.offset))
+	//	//	for _, ent := range storedEnts {
+	//	//		ents = append(ents, ent)
+	//	//	}
+	//	//}
+	//	//if hi >l.offset{
+	//	//	entries := l.entries[max(lo, l.offset)-l.offset:hi-l.offset]
+	//	//	for _, entry := range entries {
+	//	//		ents = append(ents, entry)
+	//	//	}
+	//	//for _, entry := range l.entries[lo-1 : hi-1] {
+	//	for _, entry := range l.entries[lo-l.entries[0].Index : hi-l.entries[0].Index] {
+	//		ents = append(ents, entry)
+	//
+	//	}
+	//	return ents
+	//}
 	return nil
 }
 
@@ -174,7 +181,7 @@ func (l *RaftLog) LastIndex() uint64 {
 	// Your Code Here (2A).
 	return index
 }
-func (l *RaftLog) FirstIndex() uint64 {
+func (l *RaftLog) firstIndex() uint64 {
 	index, err := l.storage.FirstIndex()
 	if err != nil {
 		panic(err)
@@ -186,27 +193,42 @@ func (l *RaftLog) FirstIndex() uint64 {
 // Term return the term of the entry in the given index
 func (l *RaftLog) Term(i uint64) (uint64, error) {
 	// Your Code Here (2A).
-	dummyIndex := l.FirstIndex() - 1
-	if i < dummyIndex || i > l.LastIndex() {
-		return 0, nil
-	}
-	if t, ok := l.unstableTerm(i); ok {
-		return t, nil
-	}
 
-	t, err := l.storage.Term(i)
-	if err == nil {
-		return t, nil
+	if len(l.entries) > 0 && i >= l.FirstIndex {
+		return l.entries[i-l.entries[0].Index].Term, nil
 	}
+	term, err := l.storage.Term(i)
 	if err == ErrUnavailable && !IsEmptySnap(l.pendingSnapshot) {
 		if i == l.pendingSnapshot.Metadata.Index {
-			t = l.pendingSnapshot.Metadata.Term
+			term = l.pendingSnapshot.Metadata.Term
 			err = nil
 		} else if i < l.pendingSnapshot.Metadata.Index {
 			err = ErrCompacted
 		}
 	}
-	return t, err
+	return term, err
+
+	//dummyIndex := l.FirstIndex() - 1
+	//if i < dummyIndex || i > l.LastIndex() {
+	//	return 0, nil
+	//}
+	//if t, ok := l.unstableTerm(i); ok {
+	//	return t, nil
+	//}
+	//
+	//t, err := l.storage.Term(i)
+	//if err == nil {
+	//	return t, nil
+	//}
+	//if err == ErrUnavailable && !IsEmptySnap(l.pendingSnapshot) {
+	//	if i == l.pendingSnapshot.Metadata.Index {
+	//		t = l.pendingSnapshot.Metadata.Term
+	//		err = nil
+	//	} else if i < l.pendingSnapshot.Metadata.Index {
+	//		err = ErrCompacted
+	//	}
+	//}
+	//return t, err
 }
 
 func (l *RaftLog) entry(lo uint64) ([]*pb.Entry, error) {
@@ -302,4 +324,24 @@ func (l *RaftLog) isUpToDate(lasti, term uint64) bool {
 	}
 
 	return term > lastTerm || (term == lastTerm && lasti >= l.LastIndex())
+}
+
+func (l *RaftLog) toSliceIndex(i uint64) int {
+	var index uint64
+	if len(l.entries) != 0 {
+		index = l.entries[0].Index
+	}
+	idx := int(i - index)
+	if idx < 0 {
+		panic("toSliceIndex: index < 0")
+	}
+	return idx
+}
+
+func (l *RaftLog) toEntryIndex(i int) uint64 {
+	var index uint64
+	if len(l.entries) != 0 {
+		index = l.entries[0].Index
+	}
+	return uint64(i) + index
 }
