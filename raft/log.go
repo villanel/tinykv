@@ -331,7 +331,7 @@ func (l *RaftLog) toSliceIndex(i uint64) int {
 	}
 	idx := int(i - index)
 	if idx < 0 {
-		panic("toSliceIndex: index < 0" + string(idx))
+		panic("toSliceIndex: index < 0")
 	}
 	return idx
 }
