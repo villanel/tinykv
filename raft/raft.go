@@ -365,8 +365,8 @@ func (r *Raft) becomeFollower(term uint64, lead uint64) {
 
 // becomeCandidate transform this peer's state to candidate
 func (r *Raft) becomeCandidate() {
-	r.votes[r.id] = true
 	r.votes = make(map[uint64]bool)
+	r.votes[r.id] = true
 	r.State = StateCandidate
 	r.Term += 1
 	r.Vote = r.id
