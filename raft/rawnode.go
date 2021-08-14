@@ -160,9 +160,6 @@ func (rn *RawNode) Ready() Ready {
 	if hardSt := r.hardState(); !isHardStateEqual(hardSt, rn.HardState) {
 		rd.HardState = hardSt
 	}
-	//if r.RaftLog.unstable.snapshot != nil {
-	//	rd.Snapshot = *r.RaftLog.unstable.snapshot
-	//}
 	if rd.SoftState != nil {
 		rn.SoftState = rd.SoftState
 	}

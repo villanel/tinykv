@@ -196,7 +196,7 @@ func (c *Cluster) Request(key []byte, reqs []*raft_cmdpb.Request, timeout time.D
 			SleepMS(100)
 			continue
 		}
-		log.Infof("put %s successful", reqs[0].String())
+		//log.Infof("put %s successful", reqs[0].String())
 		return resp, txn
 	}
 	panic("request timeout")
@@ -211,7 +211,7 @@ func (c *Cluster) CallCommandOnLeader(request *raft_cmdpb.RaftCmdRequest, timeou
 	startTime := time.Now()
 	regionID := request.Header.RegionId
 	leader := c.LeaderOfRegion(regionID)
-	log.Infof("put to leader %d values %s", leader.GetId(), request.String())
+	//log.Infof("put to leader %d values %s", leader.GetId(), request.String())
 
 	for {
 		if time.Now().Sub(startTime) > timeout {

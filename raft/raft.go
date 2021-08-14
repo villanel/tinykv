@@ -294,6 +294,7 @@ func (r *Raft) sendSnapshot(to uint64) {
 		Term:     r.Term,
 		Snapshot: &snapshot,
 	}
+	log.Infof("%s sendSnapshot to(%d)", r.id, to)
 	r.msgs = append(r.msgs, msg)
 	r.Prs[to].Match = r.RaftLog.pendingSnapshot.GetMetadata().GetIndex()
 	r.Prs[to].Next = snapshot.Metadata.Index + 1
@@ -506,6 +507,8 @@ func (r *Raft) Step(m pb.Message) error {
 		}
 	case StateLeader:
 		switch m.MsgType {
+		case pb.MessageType_MsgSnapshot:
+			r.handleSnapshot(m)
 		case pb.MessageType_MsgAppend:
 			r.handleAppendEntries(m)
 		case pb.MessageType_MsgBeat:

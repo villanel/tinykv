@@ -96,6 +96,18 @@ func newLog(storage Storage) *RaftLog {
 // grow unlimitedly in memory
 func (l *RaftLog) maybeCompact() {
 	// Your Code Here (2C).
+	//
+	//first, _ := l.storage.FirstIndex()
+	//if first > l.FirstIndex {
+	//	if len(l.entries) > 0 {
+	//		entries := l.entries[l.toSliceIndex(first):]
+	//		l.entries = make([]pb.Entry, len(entries))
+	//		copy(l.entries, entries)
+	//	}
+	//	l.FirstIndex = first
+	//}
+	//
+
 	if len(l.entries) == 0 {
 		return
 	}
@@ -193,10 +205,10 @@ func (l *RaftLog) firstIndex() uint64 {
 // Term return the term of the entry in the given index
 func (l *RaftLog) Term(i uint64) (uint64, error) {
 
-	dummyIndex := l.firstIndex() - 1
-	if i < dummyIndex || i > l.LastIndex() {
-		return 0, nil
-	}
+	//dummyIndex := l.firstIndex() - 1
+	//if i < dummyIndex || i > l.LastIndex() {
+	//	return 0, nil
+	//}
 	if t, ok := l.unstableTerm(i); ok {
 		return t, nil
 	}
@@ -234,6 +246,7 @@ func (l *RaftLog) entry(lo uint64) ([]*pb.Entry, error) {
 	//			ents = append(ents, &entry)
 	//		}
 	//}
+
 	entries := l.entries[lo-l.entries[0].Index:]
 	for i := 0; i < len(entries); i++ {
 		ents = append(ents, &entries[i])

@@ -578,10 +578,12 @@ func (d *peerMsgHandler) getKeyFromReq(req *raft_cmdpb.Request) []byte {
 	return key
 }
 func (d *peerMsgHandler) proposeReq(msg *raft_cmdpb.RaftCmdRequest, cb *message.Callback) {
-	if d.getKeyFromReq(msg.Requests[0]) != nil {
-		err := util.CheckKeyInRegion(d.getKeyFromReq(msg.Requests[0]), d.Region())
-		if err != nil {
-			cb.Done(ErrResp(err))
+	if len(msg.Requests) != 0 {
+		if d.getKeyFromReq(msg.Requests[0]) != nil {
+			err := util.CheckKeyInRegion(d.getKeyFromReq(msg.Requests[0]), d.Region())
+			if err != nil {
+				cb.Done(ErrResp(err))
+			}
 		}
 	}
 	data, err := msg.Marshal()
@@ -591,6 +593,7 @@ func (d *peerMsgHandler) proposeReq(msg *raft_cmdpb.RaftCmdRequest, cb *message.
 	p := &proposal{index: d.nextProposalIndex(), term: d.Term(), cb: cb}
 	d.proposals = append(d.proposals, p)
 	d.RaftGroup.Propose(data)
+
 }
 func (d *peerMsgHandler) proposeAdminReq(msg *raft_cmdpb.RaftCmdRequest, cb *message.Callback) bool {
 	if msg.GetAdminRequest() != nil {
