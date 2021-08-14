@@ -206,9 +206,10 @@ func (l *RaftLog) firstIndex() uint64 {
 func (l *RaftLog) Term(i uint64) (uint64, error) {
 
 	//dummyIndex := l.firstIndex() - 1
-	//if i < dummyIndex || i > l.LastIndex() {
-	//	return 0, nil
-	//}
+	//if i < dummyIndex ||
+	if i > l.LastIndex() {
+		return 0, nil
+	}
 	if t, ok := l.unstableTerm(i); ok {
 		return t, nil
 	}

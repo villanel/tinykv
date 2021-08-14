@@ -106,7 +106,7 @@ func (d *peerMsgHandler) HandleRaftReady() {
 			err := d.sendRaftMessage(message, d.ctx.trans)
 			if !util.IsHeartbeatMsg(message.GetMsgType()) {
 				if err != nil {
-					log.Infof("%s '%d->%d' msg(%v)error:%v", d.Tag, message.GetFrom(), message.GetTo(), message.GetMsgType(), err)
+					//log.Infof("%s '%d->%d' msg(%v)error:%v", d.Tag, message.GetFrom(), message.GetTo(), message.GetMsgType(), err)
 				}
 			}
 		}
@@ -443,8 +443,11 @@ func (d *peerMsgHandler) processReq(entry *eraftpb.Entry, msg *raft_cmdpb.RaftCm
 		//wb = new(engine_util.WriteBatch)
 		resp.Responses = []*raft_cmdpb.Response{{CmdType: raft_cmdpb.CmdType_Snap, Snap: &raft_cmdpb.SnapResponse{Region: d.Region()}}}
 	}
+	//d.peerStorage.Engines.WriteKV(wb)
+	//wb = new(engine_util.WriteBatch)
 	resp.Header.CurrentTerm = msg.GetHeader().GetTerm()
 	proposal.cb.Done(resp)
+
 	return
 }
 
