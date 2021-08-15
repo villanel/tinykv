@@ -236,6 +236,7 @@ func newRaft(c *Config) *Raft {
 	//r.RaftLog.committed = state.Commit
 	hi, _ := c.Storage.LastIndex()
 	r.RaftLog.stabled = hi
+	r.RaftLog.applied = c.Applied
 	//r.RaftLog.committed =hi
 	//lo, _ := c.Storage.FirstIndex()
 	//entries, err := c.Storage.Entries(lo, hi+1)
@@ -285,6 +286,7 @@ func (r *Raft) sendAppend(to uint64) bool {
 func (r *Raft) sendSnapshot(to uint64) {
 	snapshot, err := r.RaftLog.storage.Snapshot()
 	if err != nil {
+		//shapshot still readying
 		return
 	}
 	msg := pb.Message{
@@ -853,7 +855,7 @@ func (r *Raft) maybeCommit() bool {
 	commitind := srt[n-(n/2+1)]
 	term, err := r.RaftLog.Term(commitind)
 	if err != nil {
-		log.Error(err)
+		//log.Error(err)
 	}
 	if commitind > r.RaftLog.committed && term == r.Term {
 		r.RaftLog.committed = commitind

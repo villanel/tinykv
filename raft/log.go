@@ -28,7 +28,6 @@ import "log"
 // for simplify the RaftLog implement should manage all log entries
 // that not truncated
 type RaftLog struct {
-	FirstIndex uint64
 	// storage contains all stable entries since the last snapshot.
 	storage Storage
 
@@ -67,7 +66,6 @@ func newLog(storage Storage) *RaftLog {
 		storage: storage,
 	}
 	firstIndex, err := storage.FirstIndex()
-	log.FirstIndex, _ = storage.FirstIndex()
 	if err != nil {
 		panic(err) // TODO(bdarnell)
 	}
@@ -94,7 +92,7 @@ func newLog(storage Storage) *RaftLog {
 // We need to compact the log entries in some point of time like
 // storage compact stabled log entries prevent the log entries
 // grow unlimitedly in memory
-func (l *RaftLog) maybeCompact() {
+func (l *RaftLog) mayeCompact() {
 	// Your Code Here (2C).
 	//
 	//first, _ := l.storage.FirstIndex()

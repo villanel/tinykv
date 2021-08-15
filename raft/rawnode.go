@@ -16,7 +16,6 @@ package raft
 
 import (
 	"errors"
-
 	pb "github.com/pingcap-incubator/tinykv/proto/pkg/eraftpb"
 )
 
@@ -200,7 +199,8 @@ func (rn *RawNode) Advance(rd Ready) {
 	}
 	rn.Raft.RaftLog.applied += uint64(len(rd.CommittedEntries))
 	rn.Raft.RaftLog.stabled += uint64(len(rd.Entries))
-	rn.Raft.RaftLog.maybeCompact()
+	rn.Raft.RaftLog.mayeCompact()
+	//Log.Infof("raft advance")
 }
 
 // GetProgress return the the Progress of this node and its peers, if this

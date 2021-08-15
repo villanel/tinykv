@@ -386,9 +386,10 @@ func (d *peerMsgHandler) processReq(entry *eraftpb.Entry, msg *raft_cmdpb.RaftCm
 	if key != nil {
 		err := util.CheckKeyInRegion(key, d.Region())
 		if err != nil {
-			if proposal!=nil{
-			proposal.cb.Done(ErrResp(err))
-			log.Error(err)}
+			if proposal != nil {
+				proposal.cb.Done(ErrResp(err))
+				log.Error(err)
+			}
 			return
 		}
 	}
@@ -400,8 +401,8 @@ func (d *peerMsgHandler) processReq(entry *eraftpb.Entry, msg *raft_cmdpb.RaftCm
 		err := &util.ErrEpochNotMatch{
 			Regions: []*metapb.Region{d.Region()},
 		}
-		if proposal!=nil{
-		proposal.cb.Done(ErrResp(err))
+		if proposal != nil {
+			proposal.cb.Done(ErrResp(err))
 		}
 		return
 	}
@@ -426,8 +427,9 @@ func (d *peerMsgHandler) processReq(entry *eraftpb.Entry, msg *raft_cmdpb.RaftCm
 		//s := string(req.Put.Key)
 		//s2 := string(req.Put.Value)
 		//println("raw:   "+s+""+s2)
-
-		wb.SetCF(req.Put.GetCf(), req.Put.GetKey(), req.Put.GetValue())
+		e := new(engine_util.WriteBatch)
+		e.SetCF(req.Put.GetCf(), req.Put.GetKey(), req.Put.GetValue())
+		d.peerStorage.Engines.WriteKV(e)
 
 		//err := d.peerStorage.Engines.WriteKV(wb)
 		//if err != nil {
@@ -478,11 +480,11 @@ func (d *peerMsgHandler) processAdminReq(entry *eraftpb.Entry, msg *raft_cmdpb.R
 				compactLog.CompactIndex = applyState.AppliedIndex
 				compactLog.CompactTerm, _ = d.RaftGroup.Raft.RaftLog.Term(d.peerStorage.applyState.AppliedIndex)
 			}
-			if applyState.TruncatedState.Index<compactLog.CompactIndex{
-				d.peerStorage.applyState.TruncatedState.Index=compactLog.CompactIndex
-				d.peerStorage.applyState.TruncatedState.Index=compactLog.CompactTerm
+			if applyState.TruncatedState.Index < compactLog.CompactIndex {
+				d.peerStorage.applyState.TruncatedState.Index = compactLog.CompactIndex
+				d.peerStorage.applyState.TruncatedState.Term = compactLog.CompactTerm
+				d.ScheduleCompactLog(compactLog.CompactIndex)
 			}
-         d.ScheduleCompactLog(compactLog.CompactIndex)
 
 		case raft_cmdpb.AdminCmdType_Split:
 			region := d.Region()
@@ -492,20 +494,20 @@ func (d *peerMsgHandler) processAdminReq(entry *eraftpb.Entry, msg *raft_cmdpb.R
 				d.getProposal(entry).cb.Done(ErrResp(err))
 				return
 			}
-			 secondRegion := &metapb.Region{}
+			secondRegion := &metapb.Region{}
 			util.CloneMsg(region, secondRegion)
-            region.EndKey=split.SplitKey
-           secondRegion.StartKey=split.SplitKey
-			secondRegion.Id=split.NewRegionId
+			region.EndKey = split.SplitKey
+			secondRegion.StartKey = split.SplitKey
+			secondRegion.Id = split.NewRegionId
 			region.RegionEpoch.Version++
 			secondRegion.RegionEpoch.Version++
 			for i, peer := range split.NewPeerIds {
-				 secondRegion.Peers[i].Id=peer
+				secondRegion.Peers[i].Id = peer
 			}
 			storeMeta := d.ctx.storeMeta
 			storeMeta.Lock()
 			storeMeta.regionRanges.Delete(&regionItem{region: region})
-			storeMeta.regions[secondRegion.Id]=secondRegion
+			storeMeta.regions[secondRegion.Id] = secondRegion
 			storeMeta.regionRanges.ReplaceOrInsert(&regionItem{region: region})
 			storeMeta.regionRanges.ReplaceOrInsert(&regionItem{region: secondRegion})
 			storeMeta.Unlock()
@@ -516,8 +518,8 @@ func (d *peerMsgHandler) processAdminReq(entry *eraftpb.Entry, msg *raft_cmdpb.R
 			d.SizeDiffHint = 0
 			//init peer
 			peer, err2 := createPeer(d.ctx.store.Id, d.ctx.cfg, d.ctx.regionTaskSender, d.ctx.engine, secondRegion)
-            if err !=nil {
-            	panic(err2)
+			if err != nil {
+				panic(err2)
 			}
 			d.ctx.router.register(peer)
 			d.ctx.router.send(secondRegion.Id, message.Msg{RegionID: secondRegion.Id, Type: message.MsgTypeStart})
