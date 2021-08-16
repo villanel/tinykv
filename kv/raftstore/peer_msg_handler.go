@@ -485,6 +485,9 @@ func (d *peerMsgHandler) processReq(entry *eraftpb.Entry, msg *raft_cmdpb.RaftCm
 			}
 			return
 		}
+		if proposal==nil{
+			return
+		}
 		proposal.cb.Txn = d.peerStorage.Engines.Kv.NewTransaction(false)
 		//d.peerStorage.applyState.AppliedIndex = entry.Index
 		//wb.SetMeta(meta.ApplyStateKey(d.regionId), d.peerStorage.applyState)
