@@ -297,7 +297,7 @@ func (r *Raft) sendSnapshot(to uint64) {
 		Term:     r.Term,
 		Snapshot: &snapshot,
 	}
-	log.Infof("%d sendSnapshot to(%d)", r.id, to)
+	log.Infof("%d sendSnapshot to %d", r.id, to)
 	r.msgs = append(r.msgs, msg)
 	r.Prs[to].Match = r.RaftLog.pendingSnapshot.GetMetadata().GetIndex()
 	r.Prs[to].Next = snapshot.Metadata.Index + 1

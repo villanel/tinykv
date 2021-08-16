@@ -65,7 +65,6 @@ func (d *peerMsgHandler) HandleRaftReady() {
 	//	}
 	//	d.Send(d.ctx.trans, rd.Messages)
 	//	if len(rd.CommittedEntries) > 0 {
-	//		oldProposals := d.proposals
 	//		kvWB := new(engine_util.WriteBatch)
 	//		for _, entry := range rd.CommittedEntries {
 	//			kvWB = d.process(&entry, kvWB)
@@ -76,14 +75,14 @@ func (d *peerMsgHandler) HandleRaftReady() {
 	//		d.peerStorage.applyState.AppliedIndex = rd.CommittedEntries[len(rd.CommittedEntries)-1].Index
 	//		kvWB.SetMeta(meta.ApplyStateKey(d.regionId), d.peerStorage.applyState)
 	//		kvWB.WriteToDB(d.peerStorage.Engines.Kv)
-	//		if len(oldProposals) > len(d.proposals) {
-	//			proposals := make([]*proposal, len(d.proposals))
-	//			copy(proposals, d.proposals)
-	//			d.proposals = proposals
-	//		}
 	//	}
 	//	d.RaftGroup.Advance(rd)
 	//}
+
+
+
+
+
 
 	if d.stopped {
 		return
@@ -91,24 +90,40 @@ func (d *peerMsgHandler) HandleRaftReady() {
 	if d.RaftGroup.HasReady() {
 		//1.stabled
 		ready := d.RaftGroup.Ready()
-		_, err := d.peerStorage.SaveReadyState(&ready)
+		res, err := d.peerStorage.SaveReadyState(&ready)
 		if err != nil {
 			panic(err)
 		}
-		if ready.Snapshot.GetMetadata() != nil {
-			d.ctx.storeMeta.regionRanges.ReplaceOrInsert(&regionItem{region: d.Region()})
-			d.SetRegion(d.Region())
+		if ready.Snapshot.GetMetadata() != nil || res!=nil{
+			d.SetRegion(res.Region)
+			d.ctx.storeMeta.Lock()
+			d.ctx.storeMeta.regions[res.Region.Id] = res.Region
+			d.ctx.storeMeta.regionRanges.ReplaceOrInsert(&regionItem{region: res.Region})
+			d.ctx.storeMeta.Unlock()
+
+
+			//d.ctx.d.ctx.storeMeta.Lock()
+			//d.ctx.d.ctx.storeMeta.regionRanges.ReplaceOrInsert(&regionItem{region: d.Region()})
+			//d.ctx.d.ctx.storeMeta.regions[d.regionId] = d.Region()
+			////d.SetRegion(d.Region())
+			//
+			//d.ctx.d.ctx.storeMeta.Unlock()
 		}
+		//d.peerCache = make(map[uint64]*metapb.Peer)
+		//for _, pr := range d.Region().Peers {
+		//	d.insertPeerCache(pr)
+		//}
+
 
 		//2.send message
 		for _, message := range ready.Messages {
 
-			err := d.sendRaftMessage(message, d.ctx.trans)
-			if !util.IsHeartbeatMsg(message.GetMsgType()) {
-				if err != nil {
-					//log.Infof("%s '%d->%d' msg(%v)error:%v", d.Tag, message.GetFrom(), message.GetTo(), message.GetMsgType(), err)
-				}
-			}
+			_ = d.sendRaftMessage(message, d.ctx.trans)
+			//if !util.IsHeartbeatMsg(message.GetMsgType()) {
+			//	if err != nil {
+			//		//log.Infof("%s '%d->%d' msg(%v)error:%v", d.Tag, message.GetFrom(), message.GetTo(), message.GetMsgType(), err)
+			//	}
+			//}
 		}
 		//4.apply
 
@@ -122,14 +137,14 @@ func (d *peerMsgHandler) HandleRaftReady() {
 				}
 			}
 			d.peerStorage.applyState.AppliedIndex = ready.CommittedEntries[len(ready.CommittedEntries)-1].Index
-			err := kvWB.SetMeta(meta.ApplyStateKey(d.regionId), d.peerStorage.applyState)
-			if err != nil {
-				return
-			}
-			err = d.peerStorage.Engines.WriteKV(kvWB)
-			if err != nil {
-				return
-			}
+			 kvWB.SetMeta(meta.ApplyStateKey(d.regionId), d.peerStorage.applyState)
+			//if err != nil {
+			//	return
+			//}
+			 d.peerStorage.Engines.WriteKV(kvWB)
+			//if err != nil {
+			//	return
+			//}
 			//if len(oldProposals) > len(d.proposals) {
 			//	proposals := make([]*proposal, len(d.proposals))
 			//	copy(proposals, d.proposals)
@@ -301,14 +316,24 @@ func (d *peerMsgHandler) processConfChange(cc *eraftpb.ConfChange, entry *eraftp
 	//	d.HeartbeatScheduler(d.ctx.schedulerTaskSender)
 	//}
 
-	msg := new(raft_cmdpb.RaftCmdRequest)
-	err := msg.Unmarshal(cc.Context)
-	region := d.Region()
-	err = util.CheckRegionEpoch(msg, region, true)
 
-	if err != nil {
-		panic(err)
+
+
+
+
+
+
+	msg := new(raft_cmdpb.RaftCmdRequest)
+	if err := msg.Unmarshal(cc.Context);err!=nil{
+		panic(err.Error())
 	}
+	region := d.Region()
+	//err = util.CheckRegionEpoch(msg, region, true)
+	//
+	//if err != nil {
+	//	panic(err)
+	//	match := err.(*util.ErrEpochNotMatch)
+	//}
 	switch cc.ChangeType {
 	case eraftpb.ConfChangeType_AddNode:
 		//addnode
@@ -393,19 +418,19 @@ func (d *peerMsgHandler) processReq(entry *eraftpb.Entry, msg *raft_cmdpb.RaftCm
 			return
 		}
 	}
-	epoch := d.Region().GetRegionEpoch()
-	hdrEpoch := msg.GetHeader().GetRegionEpoch()
-	if epoch.Version != hdrEpoch.Version {
-		log.Infof("%s epoch changed, retry later, prev_epoch: %s, epoch %s", d.Tag, hdrEpoch, epoch)
-
-		err := &util.ErrEpochNotMatch{
-			Regions: []*metapb.Region{d.Region()},
-		}
-		if proposal != nil {
-			proposal.cb.Done(ErrResp(err))
-		}
-		return
-	}
+	//epoch := d.Region().GetRegionEpoch()
+	//hdrEpoch := msg.GetHeader().GetRegionEpoch()
+	//if epoch.Version != hdrEpoch.Version {
+	//	log.Infof("%s epoch changed, retry later, prev_epoch: %s, epoch %s", d.Tag, hdrEpoch, epoch)
+	//
+	//	err := &util.ErrEpochNotMatch{
+	//		Regions: []*metapb.Region{d.Region()},
+	//	}
+	//	if proposal != nil {
+	//		proposal.cb.Done(ErrResp(err))
+	//	}
+	//	return
+	//}
 	//resp := &raft_cmdpb.RaftCmdResponse{Header: &raft_cmdpb.RaftResponseHeader{}}
 	resp := new(raft_cmdpb.RaftCmdResponse)
 	resp.Header = new(raft_cmdpb.RaftResponseHeader)
@@ -447,7 +472,17 @@ func (d *peerMsgHandler) processReq(entry *eraftpb.Entry, msg *raft_cmdpb.RaftCm
 		}
 		resp.Responses = []*raft_cmdpb.Response{{CmdType: raft_cmdpb.CmdType_Delete, Delete: &raft_cmdpb.DeleteResponse{}}}
 	case raft_cmdpb.CmdType_Snap:
-		if proposal == nil {
+		epoch := d.Region().GetRegionEpoch()
+		msgEpoch := msg.GetHeader().GetRegionEpoch()
+		if epoch.Version != msgEpoch.Version {
+			log.Infof("%s epoch changed, retry later, prev_epoch: %s, epoch %s", d.Tag, msgEpoch, epoch)
+
+			err := &util.ErrEpochNotMatch{
+				Regions: []*metapb.Region{d.Region()},
+			}
+			if proposal != nil {
+				proposal.cb.Done(ErrResp(err))
+			}
 			return
 		}
 		proposal.cb.Txn = d.peerStorage.Engines.Kv.NewTransaction(false)
@@ -460,7 +495,8 @@ func (d *peerMsgHandler) processReq(entry *eraftpb.Entry, msg *raft_cmdpb.RaftCm
 	//d.peerStorage.Engines.WriteKV(wb)
 	//wb = new(engine_util.WriteBatch)
 	resp.Header.CurrentTerm = msg.GetHeader().GetTerm()
-	proposal.cb.Done(resp)
+if proposal!=nil{
+	proposal.cb.Done(resp)}
 
 	return
 }

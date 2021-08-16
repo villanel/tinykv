@@ -31,6 +31,7 @@ type RaftLog struct {
 	// storage contains all stable entries since the last snapshot.
 	storage Storage
 
+	FirstIndex uint64
 	// committed is the highest log position that is known to be in
 	// stable storage on a quorum of nodes.
 	committed uint64
