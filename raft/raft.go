@@ -237,9 +237,11 @@ func newRaft(c *Config) *Raft {
 	//r.RaftLog.committed = state.Commit
 	hi, _ := c.Storage.LastIndex()
 	r.RaftLog.stabled = hi
+	if c.Applied!=0{
 	r.RaftLog.applied = c.Applied
+	}
 	//r.RaftLog.committed =hi
-	//lo, _ := c.Storage.FirstIndex()
+	//lo, _ := c.Storage.firstIdx()
 	//entries, err := c.Storage.Entries(lo, hi+1)
 	//if err != nil {
 	//	panic(err)
@@ -604,10 +606,7 @@ func (r *Raft) Step(m pb.Message) error {
 // handleAppendEntries handle AppendEntries RPC request
 func (r *Raft) handleAppendEntries(m pb.Message) {
 	// Your Code Here (2A).
-	var firstIndex uint64
-	if len(r.RaftLog.entries) != 0 {
-		firstIndex = r.RaftLog.entries[0].Index
-	}
+
 	//if m.Term != None && m.Term < r.Term {
 	//	r.sendAppendResponse(m.From, true, None, None)
 	//	return
@@ -700,14 +699,14 @@ func (r *Raft) handleAppendEntries(m pb.Message) {
 		}
 		lctIndex := m.Index + uint64(len(m.Entries))
 		for pos, entry := range m.Entries {
-			if entry.Index < firstIndex {
+			if entry.Index < r.RaftLog.firstIdx {
 				continue
 			}
 			if entry.Index <= r.RaftLog.LastIndex() {
 				u, _ := r.RaftLog.Term(entry.Index)
 				if u != entry.Term {
 					//conIndex = entry.GetIndex()
-					i := entry.Index - firstIndex
+					i := entry.Index - r.RaftLog.firstIdx
 					r.RaftLog.entries[i] = *entry
 					r.RaftLog.entries = r.RaftLog.entries[:i+1]
 					r.RaftLog.stabled = min(r.RaftLog.stabled, entry.Index-1)
@@ -766,7 +765,7 @@ func (r *Raft) handleHeartbeat(m pb.Message) {
 // handleSnapshot handle Snapshot RPC request
 func (r *Raft) handleSnapshot(m pb.Message) {
 	metadata := m.Snapshot.Metadata
-	if metadata.Index <= r.RaftLog.committed || metadata.Term < r.Term {
+	if m.Term<r.Term  {
 		r.msgs = append(r.msgs, pb.Message{
 			From:    r.id,
 			Term:    r.Term,
@@ -779,26 +778,31 @@ func (r *Raft) handleSnapshot(m pb.Message) {
 		return
 	}
 	r.becomeFollower(max(r.Term, m.Term), m.From)
+	if m.Snapshot.Metadata.Index > r.RaftLog.committed {
+		if r.RaftLog.pendingSnapshot == nil || m.Snapshot.Metadata.Index > r.RaftLog.pendingSnapshot.Metadata.Index {
+			r.RaftLog.pendingSnapshot = m.Snapshot
+		}
+
 	log := r.RaftLog
+	r.RaftLog.firstIdx=metadata.GetIndex()+1
 	log.entries = log.entries[:0]
 	log.applied = metadata.GetIndex()
 	log.committed = log.applied
-	log.stabled = log.applied
+	log.stabled = log.applied}
 	r.Prs = make(map[uint64]*Progress)
 	for _, peer := range metadata.ConfState.Nodes {
 		r.Prs[peer] = &Progress{}
 	}
-	r.RaftLog.pendingSnapshot = m.Snapshot
 	// Your Code Here (2C).
-	r.msgs = append(r.msgs, pb.Message{
-		From:    r.id,
-		Term:    r.Term,
-		To:      m.From,
-		MsgType: pb.MessageType_MsgAppendResponse,
-		Index:   r.RaftLog.LastIndex(),
-		Reject:  false,
-		LogTerm: None,
-	})
+	//r.msgs = append(r.msgs, pb.Message{
+	//	From:    r.id,
+	//	Term:    r.Term,
+	//	To:      m.From,
+	//	MsgType: pb.MessageType_MsgAppendResponse,
+	//	Index:   r.RaftLog.LastIndex(),
+	//	Reject:  false,
+	//	LogTerm: None,
+	//})
 }
 
 // addNode add a new node to raft group

@@ -180,13 +180,12 @@ func (d *peerMsgHandler) HandleRaftReady() {
 	}
 }
 func (d *peerMsgHandler) getProposal(entry *eraftpb.Entry) *proposal {
-	lastIdx := len(d.proposals) - 1
+	//lastIdx := len(d.proposals) - 1
 	for idx, p := range d.proposals {
 		if p.index == entry.Index &&
 			p.term == entry.GetTerm() {
 			//swap;
-			d.proposals[idx] = d.proposals[lastIdx]
-			d.proposals = d.proposals[:lastIdx]
+			d.proposals = d.proposals[idx+1:]
 
 			return p
 		}
@@ -1363,7 +1362,7 @@ func (d *peerMsgHandler) processAdminRequest(entry *eraftpb.Entry, msg *raft_cmd
 			applySt.TruncatedState.Index = compactLog.CompactIndex
 			applySt.TruncatedState.Term = compactLog.CompactTerm
 			wb.SetMeta(meta.ApplyStateKey(d.regionId), applySt)
-			//d.ScheduleCompactLog(d.RaftGroup.Raft.RaftLog.FirstIndex, applySt.TruncatedState.Index)
+			//d.ScheduleCompactLog(d.RaftGroup.Raft.RaftLog.firstIdx, applySt.TruncatedState.Index)
 		}
 	case raft_cmdpb.AdminCmdType_Split:
 		region := d.Region()

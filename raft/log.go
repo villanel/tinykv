@@ -31,7 +31,7 @@ type RaftLog struct {
 	// storage contains all stable entries since the last snapshot.
 	storage Storage
 
-	FirstIndex uint64
+	firstIdx uint64
 	// committed is the highest log position that is known to be in
 	// stable storage on a quorum of nodes.
 	committed uint64
@@ -77,6 +77,7 @@ func newLog(storage Storage) *RaftLog {
 	log.committed = firstIndex - 1
 	log.applied = firstIndex - 1
 	log.stabled = lastIndex
+	log.firstIdx=firstIndex
 	//storage not empty
 	if lastIndex >= firstIndex {
 		ents, err := storage.Entries(firstIndex, lastIndex+1)
@@ -96,14 +97,14 @@ func newLog(storage Storage) *RaftLog {
 func (l *RaftLog) mayeCompact() {
 	// Your Code Here (2C).
 	//
-	//first, _ := l.storage.FirstIndex()
-	//if first > l.FirstIndex {
+	//first, _ := l.storage.firstIdx()
+	//if first > l.firstIdx {
 	//	if len(l.entries) > 0 {
 	//		entries := l.entries[l.toSliceIndex(first):]
 	//		l.entries = make([]pb.Entry, len(entries))
 	//		copy(l.entries, entries)
 	//	}
-	//	l.FirstIndex = first
+	//	l.firstIdx = first
 	//}
 	//
 
@@ -111,11 +112,11 @@ func (l *RaftLog) mayeCompact() {
 		return
 	}
 	sfirst, _ := l.storage.FirstIndex()
-	first := l.entries[0].Index
-	if sfirst > first {
+	if sfirst > l.firstIdx {
 		if len(l.entries) > 0 {
-			l.entries = l.entries[sfirst-first:]
+			l.entries = l.entries[sfirst-l.firstIdx:]
 		}
+		l.firstIdx=sfirst
 	}
 
 }
@@ -144,7 +145,7 @@ func (l *RaftLog) nextEnts() (ents []pb.Entry) {
 	}
 	return nil
 
-	//off := max(l.applied+1, l.FirstIndex())
+	//off := max(l.applied+1, l.firstIdx())
 	//if l.committed+1 > off {
 	//	hi := l.committed + 1
 	//	lo := off
@@ -167,7 +168,6 @@ func (l *RaftLog) nextEnts() (ents []pb.Entry) {
 	//	}
 	//	return ents
 	//}
-	return nil
 }
 
 // LastIndex return the last index of the log entries
@@ -176,21 +176,22 @@ func (l *RaftLog) LastIndex() uint64 {
 	//if lastIndex >=l.offset{
 	//	l.offset=lastIndex+1
 	//}
-
+   var idx uint64
 	// Your Code Here (2A).
+	if !IsEmptySnap(l.pendingSnapshot) {
+		idx= max(idx, l.pendingSnapshot.Metadata.Index)
+	}
 	if len := len(l.entries); len != 0 {
 		//return l.offset + uint64(len) - 1
-		return l.entries[len-1].Index
-	}
-	if l.pendingSnapshot != nil {
-		return l.pendingSnapshot.Metadata.Index
+		idx =max(l.entries[len-1].Index,idx)
+		return idx
 	}
 	index, err := l.storage.LastIndex()
 	if err != nil {
 		panic(err)
 	}
 	// Your Code Here (2A).
-	return index
+	return max(index,idx)
 }
 func (l *RaftLog) firstIndex() uint64 {
 	index, err := l.storage.FirstIndex()
@@ -256,6 +257,10 @@ func (l *RaftLog) entry(lo uint64) ([]*pb.Entry, error) {
 
 func (l *RaftLog) unstableTerm(i uint64) (uint64, bool) {
 	if len(l.entries) > 0 && i >= l.entries[0].Index {
+		if i-l.entries[0].Index >= uint64(len(l.entries)) {
+			return 0, false
+		}
+
 		return l.entries[i-l.entries[0].Index].Term, true
 	}
 	return 0, false
