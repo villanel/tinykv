@@ -574,7 +574,9 @@ func (r *Raft) Step(m pb.Message) error {
 			}
 		case pb.MessageType_MsgAppendResponse:
 			//r.handleAppendEntriesResponse(m)
-
+           if m.Term<r.Term{
+           	return  nil
+		   }
 			if m.Reject {
 				progress := r.Prs[m.From]
 				//println(progress.Next)
@@ -606,73 +608,20 @@ func (r *Raft) Step(m pb.Message) error {
 // handleAppendEntries handle AppendEntries RPC request
 func (r *Raft) handleAppendEntries(m pb.Message) {
 	// Your Code Here (2A).
-
-	//if m.Term != None && m.Term < r.Term {
-	//	r.sendAppendResponse(m.From, true, None, None)
-	//	return
-	//}
-	//r.electionElapsed = 0
-	//r.randomizedElectionTimeout = r.electionTimeout + rand.Intn(r.electionTimeout)
-	//r.Lead = m.From
-	//l := r.RaftLog
-	//lastIndex := l.LastIndex()
-	//if m.Index > lastIndex {
-	//	r.sendAppendResponse(m.From, true, None, lastIndex+1)
-	//	return
-	//}
-	//if m.Index >= firstIndex {
-	//	logTerm, err := l.Term(m.Index)
-	//	if err != nil {
-	//		panic(err)
-	//	}
-	//	if logTerm != m.LogTerm {
-	//		index := l.toEntryIndex(sort.Search(l.toSliceIndex(m.Index+1),
-	//			func(i int) bool {
-	//				if len(l.entries) == 0 {
-	//					return false
-	//				}
-	//				return l.entries[i].Term == logTerm
-	//			}))
-	//		r.sendAppendResponse(m.From, true, logTerm, index)
-	//		return
-	//	}
-	//}
-	//
-	//for i, entry := range m.Entries {
-	//	if entry.Index < firstIndex {
-	//		continue
-	//	}
-	//	if entry.Index <= l.LastIndex() {
-	//		logTerm, err := l.Term(entry.Index)
-	//		if err != nil {
-	//			panic(err)
-	//		}
-	//		if logTerm != entry.Term {
-	//			idx := l.toSliceIndex(entry.Index)
-	//			l.entries[idx] = *entry
-	//			l.entries = l.entries[:idx+1]
-	//			l.stabled = min(l.stabled, entry.Index-1)
-	//		}
-	//	} else {
-	//		n := len(m.Entries)
-	//		for j := i; j < n; j++ {
-	//			l.entries = append(l.entries, *m.Entries[j])
-	//		}
-	//		break
-	//	}
-	//}
-	//if m.Commit > l.committed {
-	//	l.committed = min(m.Commit, m.Index+uint64(len(m.Entries)))
-	//}
-	//r.sendAppendResponse(m.From, false, None, l.LastIndex())
-	//
-	//
-	//
-
+	if m.Term < r.Term {
+		r.msgs = append(r.msgs, pb.Message{To: m.From, From: m.To, Term: m.Term, MsgType: pb.MessageType_MsgAppendResponse, Index: 0})
+		return
+	}
 	if m.Index < r.RaftLog.committed {
 		r.msgs = append(r.msgs, pb.Message{To: m.From, From: m.To, Term: m.Term, MsgType: pb.MessageType_MsgAppendResponse, Index: r.RaftLog.committed})
 		return
 	}
+	if m.Index > r.RaftLog.LastIndex(){
+		r.msgs = append(r.msgs, pb.Message{To: m.From, From: m.To, Term: m.Term,Reject: true, MsgType: pb.MessageType_MsgAppendResponse, Index: r.RaftLog.committed+1})
+		return
+	}
+
+	r.Lead=m.From
 	//lastIndex := r.RaftLog.LastIndex()
 	//if m.Index > lastIndex {
 	//	r.sendAppendResponse(m.From, true, None, lastIndex+1)
