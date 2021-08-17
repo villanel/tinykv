@@ -192,7 +192,7 @@ func reset(r *Raft) {
 	//for i, _ := range r.votes {
 	//	r.votes[i]=false
 	//}
-	r.PendingConfIndex = 0
+	//r.PendingConfIndex = 0
 	r.votes = make(map[uint64]bool)
 	r.randomizedElectionTimeout = r.electionTimeout + globalRand.Intn(r.electionTimeout)
 	for i, _ := range r.Prs {
@@ -252,7 +252,7 @@ func newRaft(c *Config) *Raft {
 // sendAppend sends an append RPC with new entries (if any) and the
 // current commit index to the given peer. Returns true if a message was sent.
 func (r *Raft) sendAppend(to uint64) bool {
-    //log.Infof("%d send append to %d",r.id,to)
+	//log.Infof("%d send append to %d",r.id,to)
 	progress := r.Prs[to]
 	m := pb.Message{}
 	m.To = to
@@ -416,6 +416,9 @@ func (r *Raft) Step(m pb.Message) error {
 		}
 		r.becomeCandidate()
 		r.randomizedElectionTimeout = r.electionTimeout + rand.Intn(r.electionTimeout)
+		if len(r.Prs) == 0 {
+			return nil
+		}
 		if len(r.Prs) == 1 {
 			r.becomeLeader()
 			for id := range r.Prs {
@@ -544,6 +547,7 @@ func (r *Raft) Step(m pb.Message) error {
 				r.sendAppend(m.From)
 			}
 		case pb.MessageType_MsgPropose:
+
 			if r.leadTransferee != None {
 				return nil
 			}
@@ -690,10 +694,10 @@ func (r *Raft) handleAppendEntries(m pb.Message) {
 	term, _ := r.RaftLog.Term(m.Index)
 	if term == m.LogTerm {
 		//var conIndex uint64 = 0
-			var ent []pb.Entry
+		var ent []pb.Entry
 		for _, entry := range m.Entries {
-				ent = append(ent, *entry)
-			}
+			ent = append(ent, *entry)
+		}
 		lctIndex := m.Index + uint64(len(m.Entries))
 		for pos, entry := range m.Entries {
 			if entry.Index < firstIndex {
@@ -701,17 +705,17 @@ func (r *Raft) handleAppendEntries(m pb.Message) {
 			}
 			if entry.Index <= r.RaftLog.LastIndex() {
 				u, _ := r.RaftLog.Term(entry.Index)
-			if u != entry.Term {
-				//conIndex = entry.GetIndex()
-				i:=entry.Index-firstIndex
-				r.RaftLog.entries[i]=*entry
-				r.RaftLog.entries =r.RaftLog.entries[:i+1]
-				r.RaftLog.stabled = min(r.RaftLog.stabled, entry.Index-1)
-			}
-		}else{
-					r.RaftLog.entries = append(r.RaftLog.entries, ent[pos:]...)
+				if u != entry.Term {
+					//conIndex = entry.GetIndex()
+					i := entry.Index - firstIndex
+					r.RaftLog.entries[i] = *entry
+					r.RaftLog.entries = r.RaftLog.entries[:i+1]
+					r.RaftLog.stabled = min(r.RaftLog.stabled, entry.Index-1)
+				}
+			} else {
+				r.RaftLog.entries = append(r.RaftLog.entries, ent[pos:]...)
 				break
-		}
+			}
 		}
 		//switch {
 		//case conIndex == 0:
@@ -743,7 +747,7 @@ func (r *Raft) handleAppendEntries(m pb.Message) {
 			LogTerm: hintTerm,
 		})
 	}
-//
+	//
 }
 
 // handleHeartbeat handle Heartbeat RPC request
@@ -751,12 +755,12 @@ func (r *Raft) handleHeartbeat(m pb.Message) {
 	//if r.RaftLog.committed < m.Commit {
 	//	r.RaftLog.committed = m.Commit
 	//}
-	if m.Term<r.Term{
+	if m.Term < r.Term {
 
-		r.msgs = append(r.msgs, pb.Message{From: r.id,Reject: true,To: m.From, MsgType: pb.MessageType_MsgHeartbeatResponse})
+		r.msgs = append(r.msgs, pb.Message{From: r.id, Reject: true, To: m.From, MsgType: pb.MessageType_MsgHeartbeatResponse})
 	}
 	// Your Code Here (2A).
-	r.msgs = append(r.msgs, pb.Message{From: r.id, To: m.From,Index: m.Index,MsgType: pb.MessageType_MsgHeartbeatResponse})
+	r.msgs = append(r.msgs, pb.Message{From: r.id, To: m.From, Index: m.Index, MsgType: pb.MessageType_MsgHeartbeatResponse})
 }
 
 // handleSnapshot handle Snapshot RPC request
@@ -800,6 +804,7 @@ func (r *Raft) handleSnapshot(m pb.Message) {
 // addNode add a new node to raft group
 func (r *Raft) addNode(id uint64) {
 	// Your Code Here (3A).
+	log.Infof("add new node %d", id)
 	if _, ok := r.Prs[id]; !ok {
 		r.Prs[id] = &Progress{
 			Match: 0,
@@ -814,8 +819,16 @@ func (r *Raft) removeNode(id uint64) {
 	// Your Code Here (3A).
 	if _, ok := r.Prs[id]; ok {
 		delete(r.Prs, id)
+		log.Infof("remove  node %d", id)
 		if r.State == StateLeader {
 			r.maybeCommit()
+			for id := range r.Prs {
+				if id == r.id {
+					continue
+				}
+				//log.Infof("leader %s send append",r.id)
+				r.sendAppend(id)
+			}
 		}
 	}
 	r.PendingConfIndex = None
@@ -1044,6 +1057,7 @@ func (r *Raft) bcastAppend() {
 }
 
 func (r *Raft) handleTransferLeader(m pb.Message) {
+	log.Infof("handleTransferLeader")
 	if r.id == m.From {
 		return
 	}
