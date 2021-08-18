@@ -52,7 +52,7 @@ type Storage interface {
 	// Entries returns at least one entry if any.
 	Entries(lo, hi uint64) ([]pb.Entry, error)
 	// Term returns the term of entry i, which must be in the range
-	// [FirstIndex()-1, LastIndex()]. The term of the entry before
+	// [firstIdx()-1, LastIndex()]. The term of the entry before
 	// FirstIndex is retained for matching purposes even though the
 	// rest of that entry may not be available.
 	Term(i uint64) (uint64, error)
