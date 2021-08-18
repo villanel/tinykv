@@ -417,6 +417,13 @@ func (d *peerMsgHandler) processReq(entry *eraftpb.Entry, msg *raft_cmdpb.RaftCm
 			return
 		}
 	}
+	region := d.Region()
+	if err := util.CheckRegionEpoch(msg, region, true); err != nil {
+		if proposal != nil {
+			proposal.cb.Done(ErrResp(err))
+		}
+		return
+	}
 	//epoch := d.Region().GetRegionEpoch()
 	//hdrEpoch := msg.GetHeader().GetRegionEpoch()
 	//if epoch.Version != hdrEpoch.Version {
@@ -532,8 +539,17 @@ func (d *peerMsgHandler) processAdminReq(entry *eraftpb.Entry, msg *raft_cmdpb.R
 			if err != nil {
 				if proposal!=nil {
 				proposal.cb.Done(ErrResp(err))
-				return}
+				return
+				}
+				return
 			}
+			if err := util.CheckRegionEpoch(msg, region, true); err != nil {
+				if proposal != nil {
+					proposal.cb.Done(ErrResp(err))
+				}
+				return
+			}
+
 			secondRegion := &metapb.Region{}
 			util.CloneMsg(region, secondRegion)
 			region.EndKey = split.SplitKey
@@ -544,9 +560,11 @@ func (d *peerMsgHandler) processAdminReq(entry *eraftpb.Entry, msg *raft_cmdpb.R
 			for i, peer := range split.NewPeerIds {
 				secondRegion.Peers[i].Id = peer
 			}
+			d.SetRegion(region)
 			storeMeta := d.ctx.storeMeta
 			storeMeta.Lock()
 			storeMeta.regionRanges.Delete(&regionItem{region: region})
+			storeMeta.regions[region.Id] = region
 			storeMeta.regions[secondRegion.Id] = secondRegion
 			storeMeta.regionRanges.ReplaceOrInsert(&regionItem{region: region})
 			storeMeta.regionRanges.ReplaceOrInsert(&regionItem{region: secondRegion})
@@ -557,7 +575,7 @@ func (d *peerMsgHandler) processAdminReq(entry *eraftpb.Entry, msg *raft_cmdpb.R
 			d.ApproximateSize = new(uint64)
 			d.SizeDiffHint = 0
 			//init peer
-			peer, err2 := createPeer(d.ctx.store.Id, d.ctx.cfg, d.ctx.regionTaskSender, d.ctx.engine, secondRegion)
+			peer, err2 := createPeer(d.storeID(), d.ctx.cfg, d.ctx.regionTaskSender, d.ctx.engine, secondRegion)
 			if err != nil {
 				panic(err2)
 			}

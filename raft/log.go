@@ -218,11 +218,12 @@ func (l *RaftLog) Term(i uint64) (uint64, error) {
 	if err == nil {
 		return t, nil
 	}
-	if err == ErrUnavailable && !IsEmptySnap(l.pendingSnapshot) {
-		if i == l.pendingSnapshot.Metadata.Index {
-			t = l.pendingSnapshot.Metadata.Term
+	snapshot := l.pendingSnapshot
+	if !IsEmptySnap(snapshot)&&err == ErrUnavailable  {
+		if i == snapshot.Metadata.Index {
+			t = snapshot.Metadata.Term
 			err = nil
-		} else if i < l.pendingSnapshot.Metadata.Index {
+		} else if i < snapshot.Metadata.Index {
 			err = ErrCompacted
 		}
 	}
