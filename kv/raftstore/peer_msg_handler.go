@@ -740,6 +740,15 @@ func (d *peerMsgHandler) proposeAdminReq(msg *raft_cmdpb.RaftCmdRequest, cb *mes
 	if msg.GetAdminRequest() != nil {
 		admin := msg.GetAdminRequest()
 		switch admin.GetCmdType() {
+		case raft_cmdpb.AdminCmdType_Split:
+			err := util.CheckKeyInRegion(admin.Split.SplitKey, d.Region())
+			if err != nil {
+				cb.Done(ErrResp(err))
+				return true
+			}else {
+				return false
+			}
+
 		case raft_cmdpb.AdminCmdType_TransferLeader:
 			d.RaftGroup.TransferLeader(admin.TransferLeader.GetPeer().GetId())
 			resp := newCmdResp()
