@@ -525,12 +525,14 @@ func (d *peerMsgHandler) processAdminReq(entry *eraftpb.Entry, msg *raft_cmdpb.R
 			}
 
 		case raft_cmdpb.AdminCmdType_Split:
+			proposal := d.getProposal(entry)
 			region := d.Region()
 			split := msg.AdminRequest.GetSplit()
 			err := util.CheckKeyInRegion(split.SplitKey, region)
 			if err != nil {
-				d.getProposal(entry).cb.Done(ErrResp(err))
-				return
+				if proposal!=nil {
+				proposal.cb.Done(ErrResp(err))
+				return}
 			}
 			secondRegion := &metapb.Region{}
 			util.CloneMsg(region, secondRegion)
@@ -567,7 +569,8 @@ func (d *peerMsgHandler) processAdminReq(entry *eraftpb.Entry, msg *raft_cmdpb.R
 			resp.AdminResponse.Split = &raft_cmdpb.SplitResponse{
 				Regions: []*metapb.Region{region, secondRegion},
 			}
-			d.getProposal(entry).cb.Done(resp)
+			 if proposal!=nil {
+	     		proposal.cb.Done(resp)}
 		}
 	}
 }
