@@ -558,10 +558,10 @@ func (r *Raft) Step(m pb.Message) error {
 				entry.Index = r.RaftLog.LastIndex() + 1
 				//get the first index of ConfChange
 				if entry.EntryType == pb.EntryType_EntryConfChange {
-					if r.PendingConfIndex != None {
-						continue
+					if r.PendingConfIndex >r.RaftLog.applied {
+						entry.EntryType, entry.Data = pb.EntryType_EntryNormal, nil
 					}
-					r.PendingConfIndex = entry.Index
+					r.PendingConfIndex = r.RaftLog.LastIndex()+1
 				}
 				r.appendEntry(*entry)
 			}
@@ -764,7 +764,7 @@ func (r *Raft) addNode(id uint64) {
 			Next:  1,
 		}
 	}
-	r.PendingConfIndex = None
+	//r.PendingConfIndex = None
 }
 
 // removeNode remove a node from raft group
@@ -784,7 +784,7 @@ func (r *Raft) removeNode(id uint64) {
 			}
 		}
 	}
-	r.PendingConfIndex = None
+	//r.PendingConfIndex = None
 }
 func (r *Raft) poll(m pb.Message) VoteResult {
 	if m.Term != None && m.Term < r.Term {
