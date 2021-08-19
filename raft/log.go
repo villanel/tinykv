@@ -77,7 +77,7 @@ func newLog(storage Storage) *RaftLog {
 	log.committed = firstIndex - 1
 	log.applied = firstIndex - 1
 	log.stabled = lastIndex
-	log.firstIdx=firstIndex
+	log.firstIdx =firstIndex
 	//storage not empty
 	if lastIndex >= firstIndex {
 		ents, err := storage.Entries(firstIndex, lastIndex+1)
@@ -116,7 +116,7 @@ func (l *RaftLog) mayeCompact() {
 		if len(l.entries) > 0 {
 			l.entries = l.entries[sfirst-l.firstIdx:]
 		}
-		l.firstIdx=sfirst
+		l.firstIdx =sfirst
 	}
 
 }

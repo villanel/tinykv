@@ -558,10 +558,10 @@ func (r *Raft) Step(m pb.Message) error {
 				entry.Index = r.RaftLog.LastIndex() + 1
 				//get the first index of ConfChange
 				if entry.EntryType == pb.EntryType_EntryConfChange {
-					if r.PendingConfIndex >r.RaftLog.applied {
-						entry.EntryType, entry.Data = pb.EntryType_EntryNormal, nil
+					if r.PendingConfIndex != None {
+						continue
 					}
-					r.PendingConfIndex = r.RaftLog.LastIndex()+1
+					r.PendingConfIndex = entry.Index
 				}
 				r.appendEntry(*entry)
 			}
@@ -574,9 +574,7 @@ func (r *Raft) Step(m pb.Message) error {
 			}
 		case pb.MessageType_MsgAppendResponse:
 			//r.handleAppendEntriesResponse(m)
-           if m.Term<r.Term{
-           	return  nil
-		   }
+
 			if m.Reject {
 				progress := r.Prs[m.From]
 				//println(progress.Next)
@@ -608,20 +606,10 @@ func (r *Raft) Step(m pb.Message) error {
 // handleAppendEntries handle AppendEntries RPC request
 func (r *Raft) handleAppendEntries(m pb.Message) {
 	// Your Code Here (2A).
-	if m.Term < r.Term {
-		r.msgs = append(r.msgs, pb.Message{To: m.From, From: m.To, Term: m.Term, MsgType: pb.MessageType_MsgAppendResponse, Index: 0})
-		return
-	}
 	if m.Index < r.RaftLog.committed {
 		r.msgs = append(r.msgs, pb.Message{To: m.From, From: m.To, Term: m.Term, MsgType: pb.MessageType_MsgAppendResponse, Index: r.RaftLog.committed})
 		return
 	}
-	if m.Index > r.RaftLog.LastIndex(){
-		r.msgs = append(r.msgs, pb.Message{To: m.From, From: m.To, Term: m.Term,Reject: true, MsgType: pb.MessageType_MsgAppendResponse, Index: r.RaftLog.committed+1})
-		return
-	}
-
-	r.Lead=m.From
 	//lastIndex := r.RaftLog.LastIndex()
 	//if m.Index > lastIndex {
 	//	r.sendAppendResponse(m.From, true, None, lastIndex+1)
@@ -764,7 +752,7 @@ func (r *Raft) addNode(id uint64) {
 			Next:  1,
 		}
 	}
-	//r.PendingConfIndex = None
+	r.PendingConfIndex = None
 }
 
 // removeNode remove a node from raft group
@@ -784,7 +772,7 @@ func (r *Raft) removeNode(id uint64) {
 			}
 		}
 	}
-	//r.PendingConfIndex = None
+	r.PendingConfIndex = None
 }
 func (r *Raft) poll(m pb.Message) VoteResult {
 	if m.Term != None && m.Term < r.Term {
