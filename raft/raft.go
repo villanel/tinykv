@@ -558,19 +558,20 @@ func (r *Raft) Step(m pb.Message) error {
 				entry.Index = r.RaftLog.LastIndex() + 1
 				//get the first index of ConfChange
 				if entry.EntryType == pb.EntryType_EntryConfChange {
-					if r.PendingConfIndex >r.RaftLog.applied {
+					if r.PendingConfIndex > r.RaftLog.applied {
 						entry.EntryType, entry.Data = pb.EntryType_EntryNormal, nil
-					}else{
-					r.PendingConfIndex = entry.Index}
+					} else {
+						r.PendingConfIndex = r.RaftLog.LastIndex() + 1
+					}
+					r.appendEntry(*entry)
 				}
-				r.appendEntry(*entry)
-			}
-			for id := range r.Prs {
-				if id == r.id {
-					continue
+				for id := range r.Prs {
+					if id == r.id {
+						continue
+					}
+					//log.Infof("leader %s send append",r.id)
+					r.sendAppend(id)
 				}
-				//log.Infof("leader %s send append",r.id)
-				r.sendAppend(id)
 			}
 		case pb.MessageType_MsgAppendResponse:
 			//r.handleAppendEntriesResponse(m)
