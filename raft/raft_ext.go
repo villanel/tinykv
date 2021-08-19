@@ -447,7 +447,7 @@ func (r *Raft) handleAppendEntries1(m pb.Message) {
 		r.sendAppendResponse(m.From, true, None, lastIndex+1)
 		return
 	}
-	if m.Index >= l.FirstIndex {
+	if m.Index >= l.firstIdx{
 		logTerm, err := l.Term(m.Index)
 		if err != nil {
 			panic(err)
@@ -461,7 +461,7 @@ func (r *Raft) handleAppendEntries1(m pb.Message) {
 	}
 
 	for i, entry := range m.Entries {
-		if entry.Index < l.FirstIndex {
+		if entry.Index < l.firstIndex() {
 			continue
 		}
 		if entry.Index <= l.LastIndex() {
@@ -603,7 +603,7 @@ func (r *Raft) handleSnapshot1(m pb.Message) {
 	if len(r.RaftLog.entries) > 0 {
 		r.RaftLog.entries = nil
 	}
-	r.RaftLog.FirstIndex = first
+	r.RaftLog.firstIdx = first
 	r.RaftLog.applied = meta.Index
 	r.RaftLog.committed = meta.Index
 	r.RaftLog.stabled = meta.Index

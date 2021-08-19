@@ -398,12 +398,16 @@ func (ps *PeerStorage) SaveReadyState(ready *raft.Ready) (*ApplySnapResult, erro
 		log.Errorf("SaveReadyState:%s", err.Error())
 		return nil, err
 	}
-	if len(ready.Entries) > 0 && ready.Entries[len(ready.Entries)-1].Index > ps.raftState.LastIndex {
-		ps.raftState.LastIndex = ready.Entries[len(ready.Entries)-1].Index
-		ps.raftState.LastTerm = ready.Entries[len(ready.Entries)-1].Term
-	}
-	if len(ready.CommittedEntries) > 0 {
-		ps.applyState.AppliedIndex = ready.CommittedEntries[len(ready.CommittedEntries)-1].Index
+	//if len(ready.Entries) > 0 && ready.Entries[len(ready.Entries)-1].Index > ps.raftState.LastIndex {
+	//	ps.raftState.LastIndex = ready.Entries[len(ready.Entries)-1].Index
+	//	ps.raftState.LastTerm = ready.Entries[len(ready.Entries)-1].Term
+	//}
+	//if len(ready.CommittedEntries) > 0 {
+	//	ps.applyState.AppliedIndex = ready.CommittedEntries[len(ready.CommittedEntries)-1].Index
+	//}
+	err = ps.Append(ready.Entries, raftWB)
+	if err!=nil {
+		panic(err)
 	}
 	if !raft.IsEmptyHardState(ready.HardState) {
 		ps.raftState.HardState = &ready.HardState
@@ -412,9 +416,9 @@ func (ps *PeerStorage) SaveReadyState(ready *raft.Ready) (*ApplySnapResult, erro
 	if !raft.IsEmptySnap(&ready.Snapshot) {
 		result, _ = ps.ApplySnapshot(&ready.Snapshot, kvWB, raftWB)
 	}
-	kvWB.SetMeta(meta.ApplyStateKey(ps.region.GetId()), ps.applyState)
+	//kvWB.SetMeta(meta.ApplyStateKey(ps.region.GetId()), ps.applyState)
 	raftWB.SetMeta(meta.RaftStateKey(ps.region.GetId()), ps.raftState)
-	ps.Engines.WriteRaft(raftWB)
+	//ps.Engines.WriteRaft(raftWB)
 	ps.Engines.WriteKV(kvWB)
 	return result, nil
 }
