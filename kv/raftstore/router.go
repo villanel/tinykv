@@ -1,6 +1,7 @@
 package raftstore
 
 import (
+	"github.com/pingcap-incubator/tinykv/log"
 	"sync"
 	"sync/atomic"
 
@@ -46,7 +47,7 @@ func (pr *router) register(peer *peer) {
 		peer: peer,
 	}
 	pr.peers.Store(id, newPeer)
-	//log.Infof("%p register %s", pr, peer.Tag)
+	log.Infof("%p register %s", pr, peer.Tag)
 }
 
 func (pr *router) close(regionID uint64) {
