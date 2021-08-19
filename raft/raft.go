@@ -561,7 +561,7 @@ func (r *Raft) Step(m pb.Message) error {
 					if r.PendingConfIndex >r.RaftLog.applied {
 						entry.EntryType, entry.Data = pb.EntryType_EntryNormal, nil
 					}else{
-					r.PendingConfIndex = r.RaftLog.LastIndex()+1}
+					r.PendingConfIndex = entry.Index}
 				}
 				r.appendEntry(*entry)
 			}
