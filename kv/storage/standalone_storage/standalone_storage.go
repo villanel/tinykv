@@ -16,10 +16,10 @@ type StandAloneStorage struct {
 }
 
 func NewStandAloneStorage(conf *config.Config) *StandAloneStorage {
+
 	return &StandAloneStorage{
 		nil,
 	}
-	return nil
 }
 
 func (s *StandAloneStorage) Start() error {
@@ -42,7 +42,8 @@ func (s *StandAloneStorage) Stop() error {
 
 func (s *StandAloneStorage) Reader(ctx *kvrpcpb.Context) (storage.StorageReader, error) {
 	return &StandaloneReader{
-		s.db,
+		s.db.NewTransaction(false),
+
 	}, nil
 
 }
@@ -50,8 +51,11 @@ func (s *StandAloneStorage) Reader(ctx *kvrpcpb.Context) (storage.StorageReader,
 func (s *StandAloneStorage) Write(ctx *kvrpcpb.Context, batch []storage.Modify) error {
 	e := new(engine_util.WriteBatch)
 	for _, modify := range batch {
-		e.SetCF(modify.Cf(), modify.Key(), modify.Value())
+		if modify.Value()!=nil {
+			e.SetCF(modify.Cf(), modify.Key(), modify.Value())
+		}else{
+			e.DeleteCF(modify.Cf(), modify.Key())
+		}
 	}
-	e.WriteToDB(s.db)
-	return nil
+	return e.WriteToDB(s.db)
 }

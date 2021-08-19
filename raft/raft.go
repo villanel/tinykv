@@ -609,7 +609,7 @@ func (r *Raft) Step(m pb.Message) error {
 func (r *Raft) handleAppendEntries(m pb.Message) {
 	// Your Code Here (2A).
 	if m.Term < r.Term {
-		r.msgs = append(r.msgs, pb.Message{To: m.From, From: m.To, Term: m.Term, MsgType: pb.MessageType_MsgAppendResponse, Index: 0})
+		r.msgs = append(r.msgs, pb.Message{To: m.From, From: m.To, Term: m.Term,Reject: true,MsgType: pb.MessageType_MsgAppendResponse, Index: r.RaftLog.committed})
 		return
 	}
 	if m.Index < r.RaftLog.committed {

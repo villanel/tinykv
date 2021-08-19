@@ -6,23 +6,22 @@ import (
 )
 
 type StandaloneReader struct {
-	db *badger.DB
+	txn*badger.Txn
 }
 
 func (r *StandaloneReader  ) GetCF(cf string, key []byte) ([]byte, error) {
-	getCF, err := engine_util.GetCF(r.db, cf, key)
-	if err != nil {
-		return nil, err
+	getCF, err := engine_util.GetCFFromTxn(r.txn, cf, key)
+	if err != nil &&err==badger.ErrKeyNotFound{
+		return nil, nil
 	}
-	return getCF, nil
+	return getCF, err
 }
 
-func (r StandaloneReader ) IterCF(cf string) engine_util.DBIterator {
-	panic("implement me")
+func (r *StandaloneReader ) IterCF(cf string) engine_util.DBIterator {
+	return engine_util.NewCFIterator(cf, r.txn)
 }
 
-func (r StandaloneReader) Close() {
-
-	panic("implement me")
+func (r *StandaloneReader) Close() {
+r.txn.Discard()
 }
 
