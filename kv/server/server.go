@@ -3,14 +3,12 @@ package server
 import (
 	"context"
 	"github.com/Connor1996/badger"
-	"github.com/pingcap-incubator/tinykv/kv/raftstore/util"
-	"github.com/pingcap-incubator/tinykv/kv/transaction/mvcc"
-	"io"
-
 	"github.com/pingcap-incubator/tinykv/kv/coprocessor"
+	"github.com/pingcap-incubator/tinykv/kv/raftstore/util"
 	"github.com/pingcap-incubator/tinykv/kv/storage"
 	"github.com/pingcap-incubator/tinykv/kv/storage/raft_storage"
 	"github.com/pingcap-incubator/tinykv/kv/transaction/latches"
+	"github.com/pingcap-incubator/tinykv/kv/transaction/mvcc"
 	coppb "github.com/pingcap-incubator/tinykv/proto/pkg/coprocessor"
 	"github.com/pingcap-incubator/tinykv/proto/pkg/kvrpcpb"
 	"github.com/pingcap-incubator/tinykv/proto/pkg/tinykvpb"
@@ -290,18 +288,18 @@ func (server *Server) KvScan(_ context.Context, req *kvrpcpb.ScanRequest) (*kvrp
 	limit := req.Limit
 	for i := 0; i < int(limit); i++ {
 		key, value, err := scanner.Next()
-		if err==io.EOF{
+		if key==nil&&value==nil {
 			break
 		}
 		var pair *kvrpcpb.KvPair
-		if err!=nil{
-			pair=&kvrpcpb.KvPair{
-				Error: &kvrpcpb.KeyError{},
-			}
-		}else{
+		if err==nil{
 			pair=&kvrpcpb.KvPair{
 				Key: key,
 				Value: value,
+			}
+		}else{
+			pair=&kvrpcpb.KvPair{
+				Error: &kvrpcpb.KeyError{},
 			}
 
 		}
