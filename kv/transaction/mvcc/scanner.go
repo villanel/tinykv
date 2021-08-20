@@ -51,9 +51,7 @@ func (scan *Scanner) Next() ([]byte, []byte, error) {
 	if err != nil {
 		return key, nil, err
 	}
-	if write.Kind == WriteKindDelete {
-		return key, nil, nil
-	}
+
 	value, err := scan.txn.Reader.GetCF(engine_util.CfDefault, EncodeKey(key, write.StartTS))
 	DecrKey := DecodeUserKey(item.Key())
 	if !bytes.Equal(key, DecrKey) {
@@ -63,12 +61,17 @@ func (scan *Scanner) Next() ([]byte, []byte, error) {
 	curKey:=scan.key
 	scan.key=nil
 		for ;scan.iter.Valid();scan.iter.Next(){
+			if decodeTimestamp(scan.iter.Item().Key()) > scan.txn.StartTS {
+				continue
+			}
 			if!bytes.Equal(curKey,DecodeUserKey(scan.iter.Item().Key())){
 				scan.key = DecodeUserKey(scan.iter.Item().Key())
 				break
 			}
 		}
-
+	if write.Kind == WriteKindDelete {
+		return key, nil, nil
+	}
 	return key, value, err
 }
 

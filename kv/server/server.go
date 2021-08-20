@@ -288,7 +288,7 @@ func (server *Server) KvScan(_ context.Context, req *kvrpcpb.ScanRequest) (*kvrp
 	limit := req.Limit
 	for i := 0; i < int(limit); i++ {
 		key, value, err := scanner.Next()
-		if key==nil&&value==nil {
+		if key==nil {
 			break
 		}
 		var pair *kvrpcpb.KvPair
@@ -303,7 +303,8 @@ func (server *Server) KvScan(_ context.Context, req *kvrpcpb.ScanRequest) (*kvrp
 			}
 
 		}
-		resp.Pairs = append(resp.Pairs, pair )
+		if value!=nil{
+		resp.Pairs = append(resp.Pairs, pair )}
 	}
 	return resp, nil
 }
@@ -344,7 +345,7 @@ func (server *Server) KvCheckTxnStatus(_ context.Context, req *kvrpcpb.CheckTxnS
 			  }
 			  for _, lock := range locks {
 				  txn.DeleteLock(lock.Key)
-				  txn.DeleteLock(lock.Key)
+				  txn.DeleteValue(lock.Key)
 			  }
 			  write := &mvcc.Write{
 				  StartTS: req.LockTs,
@@ -399,7 +400,7 @@ func (server *Server) KvBatchRollback(_ context.Context, req *kvrpcpb.BatchRollb
 		if write != nil {
 			//committed can't do roll back
 			if write.Kind != mvcc.WriteKindRollback {
-				resp.Error = &kvrpcpb.KeyError{Abort: "true"}
+				resp.Error = &kvrpcpb.KeyError{Abort: "sur"}
 				return resp, nil
 			} else {
 				continue
@@ -410,7 +411,7 @@ func (server *Server) KvBatchRollback(_ context.Context, req *kvrpcpb.BatchRollb
 			resp.RegionError = util.RaftstoreErrToPbError(err)
 			return resp, nil
 		}
-		if lock!=nil || txn.StartTS==req.StartVersion{
+		if lock!=nil && lock.Ts==req.StartVersion{
 			txn.DeleteValue(key)
 			txn.DeleteLock(key)
 		}

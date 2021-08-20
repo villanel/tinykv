@@ -229,24 +229,12 @@ func (l *RaftLog) Term(i uint64) (uint64, error) {
 	return t, err
 }
 
+//get entries
 func (l *RaftLog) entry(lo uint64) ([]*pb.Entry, error) {
 	if lo > l.LastIndex() {
 		return nil, nil
 	}
-	//hi := l.LastIndex()
 	var ents []*pb.Entry
-	//if lo < l.offset {
-	//	storedEnts, _ := l.storage.Entries(lo, min(hi, l.offset))
-	//	for _, ent := range storedEnts {
-	//		ents = append(ents, &ent)
-	//	}
-	//}
-	//if hi >l.offset{
-	//	entries := l.entries[max(lo, l.offset)-l.offset:hi-l.offset]
-	//		for _, entry := range entries {
-	//			ents = append(ents, &entry)
-	//		}
-	//}
 
 	entries := l.entries[lo-l.entries[0].Index:]
 	for i := 0; i < len(entries); i++ {
@@ -265,6 +253,7 @@ func (l *RaftLog) unstableTerm(i uint64) (uint64, bool) {
 	}
 	return 0, false
 }
+//返回日志不匹配的index
 func (l *RaftLog) findConflictByTerm(index uint64, term uint64) uint64 {
 	if li := l.LastIndex(); index > li {
 		// NB: such calls should not exist, but since there is a straightfoward
@@ -285,24 +274,13 @@ func (l *RaftLog) findConflictByTerm(index uint64, term uint64) uint64 {
 	}
 	return index
 }
+//
 func (l *RaftLog) truncateAndAppend(ents []pb.Entry) {
 	after := ents[0].Index
 	switch {
 	case uint64(len(l.entries))+1 == after:
-		// after is the next index in the u.entries
-		// directly append
 		l.entries = append(l.entries, ents...)
-	//case after <= l.offset:
-	//	// The log is being truncated to before our current offset
-	//	// portion, so set the offset and replace the entries
-	//	l.offset = after
-	//	if len(l.entries) != 0 {
-	//		l.entries = l.entries[:l.offset-l.entries[0].Index]
-	//	}
-	//	l.entries = append(l.entries, ents...)
 	case after <= l.stabled:
-		// The log is being truncated to before our current offset
-		// portion, so set the offset and replace the entries
 		l.stabled = after
 		if len(l.entries) != 0 {
 			l.entries = l.entries[:l.stabled-l.entries[0].Index]
@@ -310,16 +288,14 @@ func (l *RaftLog) truncateAndAppend(ents []pb.Entry) {
 		l.entries = append(l.entries, ents...)
 	default:
 		if after > l.LastIndex() {
-
 			l.entries = append(l.entries, ents...)
 		} else {
-			// truncate to after and copy to u.entries
-			// then append
 			l.entries = append([]pb.Entry{}, l.entries[0:after-l.entries[0].Index]...)
 			l.entries = append(l.entries, ents...)
 		}
 	}
 }
+//比较日志，能否投票
 func (l *RaftLog) isUpToDate(lasti, term uint64) bool {
 	lastTerm, err := l.Term(l.LastIndex())
 	if err != nil {
