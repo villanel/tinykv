@@ -410,7 +410,7 @@ func (server *Server) KvBatchRollback(_ context.Context, req *kvrpcpb.BatchRollb
 		if err != nil {
 			resp.RegionError = util.RaftstoreErrToPbError(err)
 			return resp, nil
-		}
+		}//can rollback
 		if lock!=nil && lock.Ts==req.StartVersion{
 			txn.DeleteValue(key)
 			txn.DeleteLock(key)

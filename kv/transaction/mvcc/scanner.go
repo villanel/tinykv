@@ -32,6 +32,7 @@ func (scan *Scanner) Close() {
 }
 
 // Next returns the next key/value pair from the scanner. If the scanner is exhausted, then it will return `nil, nil, nil`.
+//从当前item取得value再将item转向下个key
 func (scan *Scanner) Next() ([]byte, []byte, error) {
 	if scan.key==nil {
 		return nil, nil, nil

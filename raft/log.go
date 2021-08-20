@@ -218,11 +218,12 @@ func (l *RaftLog) Term(i uint64) (uint64, error) {
 	if err == nil {
 		return t, nil
 	}
-	if err == ErrUnavailable && !IsEmptySnap(l.pendingSnapshot) {
-		if i == l.pendingSnapshot.Metadata.Index {
-			t = l.pendingSnapshot.Metadata.Term
+     snap:=l.pendingSnapshot
+	if err == ErrUnavailable && !IsEmptySnap(snap) {
+		if i == snap.Metadata.Index {
+			t = snap.Metadata.Term
 			err = nil
-		} else if i < l.pendingSnapshot.Metadata.Index {
+		} else if i < snap.Metadata.Index {
 			err = ErrCompacted
 		}
 	}
@@ -303,24 +304,4 @@ func (l *RaftLog) isUpToDate(lasti, term uint64) bool {
 	}
 
 	return term > lastTerm || (term == lastTerm && lasti >= l.LastIndex())
-}
-
-func (l *RaftLog) toSliceIndex(i uint64) int {
-	var index uint64
-	if len(l.entries) != 0 {
-		index = l.entries[0].Index
-	}
-	idx := int(i - index)
-	if idx < 0 {
-		panic("toSliceIndex: index < 0")
-	}
-	return idx
-}
-
-func (l *RaftLog) toEntryIndex(i int) uint64 {
-	var index uint64
-	if len(l.entries) != 0 {
-		index = l.entries[0].Index
-	}
-	return uint64(i) + index
 }
