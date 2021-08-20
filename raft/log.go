@@ -77,7 +77,7 @@ func newLog(storage Storage) *RaftLog {
 	log.committed = firstIndex - 1
 	log.applied = firstIndex - 1
 	log.stabled = lastIndex
-	log.firstIdx=firstIndex
+	log.firstIdx = firstIndex
 	//storage not empty
 	if lastIndex >= firstIndex {
 		ents, err := storage.Entries(firstIndex, lastIndex+1)
@@ -116,7 +116,7 @@ func (l *RaftLog) mayeCompact() {
 		if len(l.entries) > 0 {
 			l.entries = l.entries[sfirst-l.firstIdx:]
 		}
-		l.firstIdx=sfirst
+		l.firstIdx = sfirst
 	}
 
 }
@@ -176,14 +176,14 @@ func (l *RaftLog) LastIndex() uint64 {
 	//if lastIndex >=l.offset{
 	//	l.offset=lastIndex+1
 	//}
-   var idx uint64
+	var idx uint64
 	// Your Code Here (2A).
 	if !IsEmptySnap(l.pendingSnapshot) {
-		idx= max(idx, l.pendingSnapshot.Metadata.Index)
+		idx = max(idx, l.pendingSnapshot.Metadata.Index)
 	}
 	if len := len(l.entries); len != 0 {
 		//return l.offset + uint64(len) - 1
-		idx =max(l.entries[len-1].Index,idx)
+		idx = max(l.entries[len-1].Index, idx)
 		return idx
 	}
 	index, err := l.storage.LastIndex()
@@ -191,7 +191,7 @@ func (l *RaftLog) LastIndex() uint64 {
 		panic(err)
 	}
 	// Your Code Here (2A).
-	return max(index,idx)
+	return max(index, idx)
 }
 func (l *RaftLog) firstIndex() uint64 {
 	index, err := l.storage.FirstIndex()
@@ -218,7 +218,7 @@ func (l *RaftLog) Term(i uint64) (uint64, error) {
 	if err == nil {
 		return t, nil
 	}
-     snap:=l.pendingSnapshot
+	snap := l.pendingSnapshot
 	if err == ErrUnavailable && !IsEmptySnap(snap) {
 		if i == snap.Metadata.Index {
 			t = snap.Metadata.Term
@@ -254,6 +254,7 @@ func (l *RaftLog) unstableTerm(i uint64) (uint64, bool) {
 	}
 	return 0, false
 }
+
 //返回日志不匹配的index
 func (l *RaftLog) findConflictByTerm(index uint64, term uint64) uint64 {
 	if li := l.LastIndex(); index > li {
@@ -275,6 +276,7 @@ func (l *RaftLog) findConflictByTerm(index uint64, term uint64) uint64 {
 	}
 	return index
 }
+
 //
 func (l *RaftLog) truncateAndAppend(ents []pb.Entry) {
 	after := ents[0].Index
@@ -296,6 +298,7 @@ func (l *RaftLog) truncateAndAppend(ents []pb.Entry) {
 		}
 	}
 }
+
 //比较日志，能否投票
 func (l *RaftLog) isUpToDate(lasti, term uint64) bool {
 	lastTerm, err := l.Term(l.LastIndex())

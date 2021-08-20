@@ -524,10 +524,10 @@ func (r *Raft) Step(m pb.Message) error {
 				entry.Index = r.RaftLog.LastIndex() + 1
 				//get the first index of ConfChange
 				if entry.EntryType == pb.EntryType_EntryConfChange {
-				//有confchange未apply
+					//有confchange未apply
 					if r.PendingConfIndex > r.RaftLog.applied {
 						entry.EntryType = pb.EntryType_EntryNormal
-						 entry.Data = nil
+						entry.Data = nil
 					} else {
 						r.PendingConfIndex = r.RaftLog.LastIndex() + 1
 					}
@@ -654,14 +654,14 @@ func (r *Raft) handleHeartbeat(m pb.Message) {
 	//if r.RaftLog.committed < m.Commit {
 	//	r.RaftLog.committed = m.Commit
 	//}
-	msg:=pb.Message{From: r.id,To:m.From,MsgType: pb.MessageType_MsgHeartbeatResponse}
+	msg := pb.Message{From: r.id, To: m.From, MsgType: pb.MessageType_MsgHeartbeatResponse}
 	if m.Term < r.Term {
-       msg.Reject=true
+		msg.Reject = true
 		r.msgs = append(r.msgs, msg)
 	}
 	// Your Code Here (2A).
-	msg.Index=m.Index
-	r.msgs = append(r.msgs,msg)
+	msg.Index = m.Index
+	r.msgs = append(r.msgs, msg)
 }
 
 // handleSnapshot handle Snapshot RPC request

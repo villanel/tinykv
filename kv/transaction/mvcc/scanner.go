@@ -11,16 +11,16 @@ import (
 type Scanner struct {
 	// Your Data Here (4C).
 	iter engine_util.DBIterator
-	txn *MvccTxn
-	key []byte
+	txn  *MvccTxn
+	key  []byte
 }
 
 // NewScanner creates a new scanner ready to read from the snapshot in txn.
 func NewScanner(startKey []byte, txn *MvccTxn) *Scanner {
 	// Your Code Here (4C).
-	scanner:=&Scanner{
-		txn:txn,
-		key: startKey,
+	scanner := &Scanner{
+		txn:  txn,
+		key:  startKey,
 		iter: txn.Reader.IterCF(engine_util.CfWrite),
 	}
 	return scanner
@@ -34,7 +34,7 @@ func (scan *Scanner) Close() {
 // Next returns the next key/value pair from the scanner. If the scanner is exhausted, then it will return `nil, nil, nil`.
 //从当前item取得value再将item转向下个key
 func (scan *Scanner) Next() ([]byte, []byte, error) {
-	if scan.key==nil {
+	if scan.key == nil {
 		return nil, nil, nil
 	}
 	key := scan.key
@@ -59,20 +59,19 @@ func (scan *Scanner) Next() ([]byte, []byte, error) {
 		scan.key = DecrKey
 		return scan.Next()
 	}
-	curKey:=scan.key
-	scan.key=nil
-		for ;scan.iter.Valid();scan.iter.Next(){
-			if decodeTimestamp(scan.iter.Item().Key()) > scan.txn.StartTS {
-				continue
-			}
-			if!bytes.Equal(curKey,DecodeUserKey(scan.iter.Item().Key())){
-				scan.key = DecodeUserKey(scan.iter.Item().Key())
-				break
-			}
+	curKey := scan.key
+	scan.key = nil
+	for ; scan.iter.Valid(); scan.iter.Next() {
+		if decodeTimestamp(scan.iter.Item().Key()) > scan.txn.StartTS {
+			continue
 		}
+		if !bytes.Equal(curKey, DecodeUserKey(scan.iter.Item().Key())) {
+			scan.key = DecodeUserKey(scan.iter.Item().Key())
+			break
+		}
+	}
 	if write.Kind == WriteKindDelete {
 		return key, nil, nil
 	}
 	return key, value, err
 }
-

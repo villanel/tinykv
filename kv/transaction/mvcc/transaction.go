@@ -104,19 +104,19 @@ func (txn *MvccTxn) GetValue(key []byte) ([]byte, error) {
 	iter := txn.Reader.IterCF(engine_util.CfWrite)
 	defer iter.Close()
 	iter.Seek(EncodeKey(key, txn.StartTS))
-	if !iter.Valid(){
-		return  nil,nil
+	if !iter.Valid() {
+		return nil, nil
 	}
-	if !bytes.Equal(key,DecodeUserKey(iter.Item().Key())){
+	if !bytes.Equal(key, DecodeUserKey(iter.Item().Key())) {
 		return nil, nil
 	}
 	val, err := iter.Item().Value()
-	if err!=nil {
-		return nil ,err
+	if err != nil {
+		return nil, err
 	}
 	write, err := ParseWrite(val)
-	if write.Kind!=WriteKindPut {
-		return nil,nil
+	if write.Kind != WriteKindPut {
+		return nil, nil
 	}
 	return txn.Reader.GetCF(engine_util.CfDefault, EncodeKey(key, write.StartTS))
 }
@@ -159,22 +159,22 @@ func (txn *MvccTxn) CurrentWrite(key []byte) (*Write, uint64, error) {
 	// Your Code Here (4A).
 	iter := txn.Reader.IterCF(engine_util.CfWrite)
 	defer iter.Close()
-	for iter.Seek((EncodeKey(key,TsMax)));iter.Valid();iter.Next(){
+	for iter.Seek((EncodeKey(key, TsMax))); iter.Valid(); iter.Next() {
 		Item := iter.Item()
 		key := Item.Key()
-		 if bytes.Compare(key, EncodeKey(key,txn.StartTS)) >=0{
-		 	break
-		 }
+		if bytes.Compare(key, EncodeKey(key, txn.StartTS)) >= 0 {
+			break
+		}
 		value, err2 := Item.Value()
-		if err2!=nil{
-			return nil,0,nil
+		if err2 != nil {
+			return nil, 0, nil
 		}
 		write, err2 := ParseWrite(value)
-		if err2!=nil {
-			return nil ,0,nil
+		if err2 != nil {
+			return nil, 0, nil
 		}
-		if write.StartTS==txn.StartTS{
-			return write,decodeTimestamp(key),nil
+		if write.StartTS == txn.StartTS {
+			return write, decodeTimestamp(key), nil
 		}
 	}
 	return nil, 0, nil
@@ -187,21 +187,21 @@ func (txn *MvccTxn) MostRecentWrite(key []byte) (*Write, uint64, error) {
 	iter := txn.Reader.IterCF(engine_util.CfWrite)
 	defer iter.Close()
 	iter.Seek(EncodeKey(key, TsMax))
-	if !iter.Valid(){
-		return nil ,0,nil
+	if !iter.Valid() {
+		return nil, 0, nil
 	}
-	if !bytes.Equal(key,DecodeUserKey(iter.Item().Key())){
-		return nil,0,nil
+	if !bytes.Equal(key, DecodeUserKey(iter.Item().Key())) {
+		return nil, 0, nil
 	}
 	value, err := iter.Item().Value()
-	if err!=nil{
-		return nil,0,err
+	if err != nil {
+		return nil, 0, err
 	}
 	write, err := ParseWrite(value)
-   if err!=nil{
-	return nil,0,nil
-}
-	return  write,decodeTimestamp(iter.Item().Key()),nil
+	if err != nil {
+		return nil, 0, nil
+	}
+	return write, decodeTimestamp(iter.Item().Key()), nil
 }
 
 // EncodeKey encodes a user key and appends an encoded timestamp to a key. Keys and timestamps are encoded so that

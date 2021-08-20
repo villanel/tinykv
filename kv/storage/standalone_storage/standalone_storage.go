@@ -43,7 +43,6 @@ func (s *StandAloneStorage) Stop() error {
 func (s *StandAloneStorage) Reader(ctx *kvrpcpb.Context) (storage.StorageReader, error) {
 	return &StandaloneReader{
 		s.db.NewTransaction(false),
-
 	}, nil
 
 }
@@ -51,9 +50,9 @@ func (s *StandAloneStorage) Reader(ctx *kvrpcpb.Context) (storage.StorageReader,
 func (s *StandAloneStorage) Write(ctx *kvrpcpb.Context, batch []storage.Modify) error {
 	e := new(engine_util.WriteBatch)
 	for _, modify := range batch {
-		if modify.Value()!=nil {
+		if modify.Value() != nil {
 			e.SetCF(modify.Cf(), modify.Key(), modify.Value())
-		}else{
+		} else {
 			e.DeleteCF(modify.Cf(), modify.Key())
 		}
 	}
