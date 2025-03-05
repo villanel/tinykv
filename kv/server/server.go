@@ -345,6 +345,8 @@ func (server *Server) KvCheckTxnStatus(_ context.Context, req *kvrpcpb.CheckTxnS
 			locks, err := mvcc.AllLocksForTxn(txn)
 			if err != nil {
 				//panic(err.Error())
+				resp.RegionError = util.RaftstoreErrToPbError(err)
+				return resp, nil
 			}
 			for _, lock := range locks {
 				txn.DeleteLock(lock.Key)

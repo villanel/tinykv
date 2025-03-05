@@ -327,17 +327,6 @@ func (ps *PeerStorage) Append(entries []eraftpb.Entry, raftWB *engine_util.Write
 	}
 	ps.raftState.LastIndex = last
 	ps.raftState.LastTerm = entries[len(entries)-1].Term
-	//ps.Engines.
-	//switch {
-	//case uint64(len(ms.ents)) > offset:
-	//	ms.ents = append([]pb.Entry{}, ms.ents[:offset]...)
-	//	ms.ents = append(ms.ents, entries...)
-	//case uint64(len(ms.ents)) == offset:
-	//	ms.ents = append(ms.ents, entries...)
-	//default:
-	//	getLogger().Panicf("missing log entry [last: %d, append at: %d]",
-	//		ms.lastIndex(), entries[0].Index)
-	//}
 	return nil
 }
 

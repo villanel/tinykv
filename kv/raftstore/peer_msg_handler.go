@@ -64,7 +64,7 @@ func (d *peerMsgHandler) HandleRaftReady() {
 
 			_ = d.sendRaftMessage(message, d.ctx.trans)
 		}
-		//4.apply
+		//3.apply
 
 		if len(ready.CommittedEntries) > 0 {
 			kvWB := new(engine_util.WriteBatch)
@@ -80,7 +80,7 @@ func (d *peerMsgHandler) HandleRaftReady() {
 			//}
 		}
 
-		//5.advance
+		//4.advance
 		d.RaftGroup.Advance(ready)
 	}
 }
@@ -246,8 +246,6 @@ func (d *peerMsgHandler) processReq(entry *eraftpb.Entry, msg *raft_cmdpb.RaftCm
 		epoch := d.Region().GetRegionEpoch()
 		msgEpoch := msg.GetHeader().GetRegionEpoch()
 		if epoch.Version != msgEpoch.Version {
-			log.Infof("%s epoch changed, retry later, prev_epoch: %s, epoch %s", d.Tag, msgEpoch, epoch)
-
 			err := &util.ErrEpochNotMatch{
 				Regions: []*metapb.Region{d.Region()},
 			}
