@@ -16,6 +16,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"github.com/pingcap-incubator/tinykv/kv/raftstore/util"
 	"path"
 	"sync"
 	"time"
@@ -279,42 +280,45 @@ func (c *RaftCluster) handleStoreHeartbeat(stats *schedulerpb.StoreStats) error 
 // processRegionHeartbeat updates the region information.
 func (c *RaftCluster) processRegionHeartbeat(region *core.RegionInfo) error {
 	// Your Code Here (3C).
-	epoch := region.GetRegionEpoch()
-	if epoch == nil {
+	metaRegion := region.GetMeta()
+	if metaRegion == nil {
 		return nil
 	}
-	Region, _ := c.GetRegionByID(region.GetID())
-	if Region != nil {
-
-		regionEpoch := Region.GetRegionEpoch()
-		if regionEpoch.Version > epoch.Version || regionEpoch.ConfVer > epoch.ConfVer {
-			return errors.New("heartbeat region is stale")
-		}
-	} else {
-		regionsByKey := c.ScanRegions(region.GetStartKey(), region.GetEndKey(), -1)
-		for _, info := range regionsByKey {
-			getRegionEpoch := info.GetRegionEpoch()
-			if getRegionEpoch.Version > epoch.Version || getRegionEpoch.ConfVer > epoch.ConfVer {
-				return errors.New("heartbeat region is stale")
+	// Check whether there is a region with the same Id in local storage
+	oldRegion := c.GetRegion(metaRegion.GetId())
+	if oldRegion == nil {
+		// If there isn’t, scan all regions that overlap with it
+		overlapRegions := c.ScanRegions(metaRegion.GetStartKey(),metaRegion.GetEndKey(),-1)
+		// The heartbeats’ conf_ver and version should be greater or equal than all of them, or the region is stale
+		for _, overlapRegion := range overlapRegions {
+			if metaRegion.GetRegionEpoch() == nil || overlapRegion.GetRegionEpoch() == nil {
+				return errors.Errorf("epoch nil")
+			}
+			if util.IsEpochStale(metaRegion.GetRegionEpoch(), overlapRegion.GetRegionEpoch()) {
+				return errors.Errorf("region heartbeat's epoch is stale")
 			}
 		}
-
+	} else {
+		// If there is and at least one of the heartbeats’ conf_ver and version is less than its, this heartbeat region is stale
+		if metaRegion.GetRegionEpoch() == nil || oldRegion.GetRegionEpoch() == nil {
+			return errors.Errorf("epoch nil")
+		}
+		if util.IsEpochStale(metaRegion.GetRegionEpoch(), oldRegion.GetRegionEpoch()) {
+			return errors.Errorf("region heartbeat's epoch is stale")
+		}
 	}
-	// to update the region tree and related store’s status
-	c.update(region)
+
+	// update local regionInfo
+	err := c.putRegion(region)
+	if err != nil {
+		return err
+	}
+	for _, store := range c.GetStores() {
+		c.updateStoreStatusLocked(store.GetID())
+	}
 	return nil
 }
 
-func (c *RaftCluster) update(reg *core.RegionInfo) {
-	err := c.putRegion(reg)
-	if err != nil {
-		return
-	}
-	storeIds := reg.GetStoreIds()
-	for id := range storeIds {
-		c.updateStoreStatusLocked(id)
-	}
-}
 func (c *RaftCluster) updateStoreStatusLocked(id uint64) {
 	leaderCount := c.core.GetStoreLeaderCount(id)
 	regionCount := c.core.GetStoreRegionCount(id)

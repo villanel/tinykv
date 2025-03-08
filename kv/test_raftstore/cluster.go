@@ -38,6 +38,7 @@ type Cluster struct {
 	dirs            []string
 	simulator       Simulator
 	cfg             *config.Config
+	baseDir         string
 }
 
 func NewCluster(count int, schedulerClient *MockSchedulerClient, simulator Simulator, cfg *config.Config) *Cluster {
@@ -48,6 +49,7 @@ func NewCluster(count int, schedulerClient *MockSchedulerClient, simulator Simul
 		snapPaths:       make(map[uint64]string),
 		simulator:       simulator,
 		cfg:             cfg,
+		baseDir:         "test-raftstore",
 	}
 }
 
@@ -56,7 +58,7 @@ func (c *Cluster) Start() {
 	clusterID := c.schedulerClient.GetClusterID(ctx)
 
 	for storeID := uint64(1); storeID <= uint64(c.count); storeID++ {
-		dbPath, err := ioutil.TempDir("", "test-raftstore")
+		dbPath, err := ioutil.TempDir("", c.baseDir)
 		if err != nil {
 			panic(err)
 		}
@@ -65,7 +67,7 @@ func (c *Cluster) Start() {
 		raftPath := filepath.Join(dbPath, "raft")
 		snapPath := filepath.Join(dbPath, "snap")
 		c.snapPaths[storeID] = snapPath
-		c.dirs = append(c.dirs, []string{kvPath, raftPath, snapPath}...)
+		c.dirs = append(c.dirs, dbPath)
 
 		err = os.MkdirAll(kvPath, os.ModePerm)
 		if err != nil {
@@ -156,7 +158,6 @@ func (c *Cluster) AddFilter(filter Filter) {
 }
 
 func (c *Cluster) ClearFilters() {
-	log.Infof("ClearFilters")
 	c.simulator.ClearFilters()
 }
 
@@ -182,7 +183,7 @@ func (c *Cluster) AllocPeer(storeID uint64) *metapb.Peer {
 
 func (c *Cluster) Request(key []byte, reqs []*raft_cmdpb.Request, timeout time.Duration) (*raft_cmdpb.RaftCmdResponse, *badger.Txn) {
 	startTime := time.Now()
-	for i := 0; i < 10 || time.Now().Sub(startTime) < timeout; i++ {
+	for i := 0; i < 10 || time.Since(startTime) < timeout; i++ {
 		region := c.GetRegion(key)
 		regionID := region.GetId()
 		req := NewRequest(regionID, region.RegionEpoch, reqs)
@@ -196,7 +197,6 @@ func (c *Cluster) Request(key []byte, reqs []*raft_cmdpb.Request, timeout time.D
 			SleepMS(100)
 			continue
 		}
-		//log.Infof("put %s successful", reqs[0].String())
 		return resp, txn
 	}
 	panic("request timeout")
@@ -211,10 +211,8 @@ func (c *Cluster) CallCommandOnLeader(request *raft_cmdpb.RaftCmdRequest, timeou
 	startTime := time.Now()
 	regionID := request.Header.RegionId
 	leader := c.LeaderOfRegion(regionID)
-	//log.Infof("put to leader %d values %s", leader.GetId(), request.String())
-
 	for {
-		if time.Now().Sub(startTime) > timeout {
+		if time.Since(startTime) > timeout {
 			return nil, nil
 		}
 		if leader == nil {
@@ -380,11 +378,6 @@ func (c *Cluster) Scan(start, end []byte) [][]byte {
 				break
 			}
 			value, err := iter.Item().ValueCopy(nil)
-			//s3 := iter.Item().Key()
-			//println(s3)
-			//s := string(iter.Item().Key())
-			//s2 := string(value)
-			//println("k+v    "+s+""+s2)
 			if err != nil {
 				panic(err)
 			}
@@ -422,7 +415,7 @@ func (c *Cluster) MustTransferLeader(regionID uint64, leader *metapb.Peer) {
 			currentLeader.StoreId == leader.StoreId {
 			return
 		}
-		if time.Now().Sub(timer) > 5*time.Second {
+		if time.Since(timer) > 5*time.Second {
 			panic(fmt.Sprintf("failed to transfer leader to [%d] %s", regionID, leader.String()))
 		}
 		c.TransferLeader(regionID, leader)

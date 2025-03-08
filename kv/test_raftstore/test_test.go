@@ -64,7 +64,6 @@ func checkClntAppends(t *testing.T, clnt int, v string, count int) {
 		}
 		off1 := strings.LastIndex(v, wanted)
 		if off1 != off {
-			//println(string(v))
 			t.Fatalf("duplicate element %v in Append result", wanted)
 		}
 		if off <= lastoff {
@@ -79,48 +78,36 @@ func checkClntAppends(t *testing.T, clnt int, v string, count int) {
 func checkConcurrentAppends(t *testing.T, v string, counts []int) {
 	nclients := len(counts)
 	for i := 0; i < nclients; i++ {
-		lastoff := -1
-		for j := 0; j < counts[i]; j++ {
-			wanted := "x " + strconv.Itoa(i) + " " + strconv.Itoa(j) + " y"
-			off := strings.Index(v, wanted)
-			if off < 0 {
-				t.Fatalf("%v missing element %v in Append result %v", i, wanted, v)
-			}
-			off1 := strings.LastIndex(v, wanted)
-			if off1 != off {
-				t.Fatalf("duplicate element %v in Append result", wanted)
-			}
-			if off <= lastoff {
-				t.Fatalf("wrong order for element %v in Append result", wanted)
-			}
-			lastoff = off
-		}
+		checkClntAppends(t, i, v, counts[i])
 	}
 }
 
-// repartition the servers periodically
-func partitioner(t *testing.T, cluster *Cluster, ch chan bool, done *int32, unreliable bool, electionTimeout time.Duration) {
+// make network chaos among servers
+func networkchaos(t *testing.T, cluster *Cluster, ch chan bool, done *int32, unreliable bool, partitions bool, electionTimeout time.Duration) {
 	defer func() { ch <- true }()
 	for atomic.LoadInt32(done) == 0 {
-		a := make([]int, cluster.count)
-		for i := 0; i < cluster.count; i++ {
-			a[i] = (rand.Int() % 2)
-		}
-		pa := make([][]uint64, 2)
-		for i := 0; i < 2; i++ {
-			pa[i] = make([]uint64, 0)
-			for j := 1; j <= cluster.count; j++ {
-				if a[j-1] == i {
-					pa[i] = append(pa[i], uint64(j))
+		if partitions {
+			a := make([]int, cluster.count)
+			for i := 0; i < cluster.count; i++ {
+				a[i] = (rand.Int() % 2)
+			}
+			pa := make([][]uint64, 2)
+			for i := 0; i < 2; i++ {
+				pa[i] = make([]uint64, 0)
+				for j := 1; j <= cluster.count; j++ {
+					if a[j-1] == i {
+						pa[i] = append(pa[i], uint64(j))
+					}
 				}
 			}
+			cluster.ClearFilters()
+			log.Infof("partition: %v, %v", pa[0], pa[1])
+			cluster.AddFilter(&PartitionFilter{
+				s1: pa[0],
+				s2: pa[1],
+			})
 		}
-		cluster.ClearFilters()
-		log.Infof("partition: %v, %v", pa[0], pa[1])
-		cluster.AddFilter(&PartitionFilter{
-			s1: pa[0],
-			s2: pa[1],
-		})
+
 		if unreliable {
 			cluster.AddFilter(&DropFilter{})
 		}
@@ -153,7 +140,7 @@ func confchanger(t *testing.T, cluster *Cluster, ch chan bool, done *int32) {
 // - If crash is set, the servers restart after the period is over.
 // - If partitions is set, the test repartitions the network concurrently between the servers.
 // - If maxraftlog is a positive number, the count of the persistent log for Raft shouldn't exceed 2*maxraftlog.
-// - If confchangee is set, the cluster will schedule random conf change concurrently.
+// - If confchange is set, the cluster will schedule random conf change concurrently.
 // - If split is set, split region when size exceed 1024 bytes.
 func GenericTest(t *testing.T, part string, nclients int, unreliable bool, crash bool, partitions bool, maxraftlog int, confchange bool, split bool) {
 	title := "Test: "
@@ -219,7 +206,6 @@ func GenericTest(t *testing.T, part string, nclients int, unreliable bool, crash
 			for atomic.LoadInt32(&done_clients) == 0 {
 				if (rand.Int() % 1000) < 500 {
 					key := strconv.Itoa(cli) + " " + fmt.Sprintf("%08d", j)
-					//println(len(key))
 					value := "x " + strconv.Itoa(cli) + " " + strconv.Itoa(j) + " y"
 					// log.Infof("%d: client new put %v,%v\n", cli, key, value)
 					cluster.MustPut([]byte(key), []byte(value))
@@ -229,10 +215,7 @@ func GenericTest(t *testing.T, part string, nclients int, unreliable bool, crash
 					start := strconv.Itoa(cli) + " " + fmt.Sprintf("%08d", 0)
 					end := strconv.Itoa(cli) + " " + fmt.Sprintf("%08d", j)
 					// log.Infof("%d: client new scan %v-%v\n", cli, start, end)
-					//value := cluster.Scan([]byte(start), []byte(end))
-					//s := string(bytes.Join(value, []byte("")))
 					values := cluster.Scan([]byte(start), []byte(end))
-					//println(s)
 					v := string(bytes.Join(values, []byte("")))
 					if v != last {
 						log.Fatalf("get wrong value, client %v\nwant:%v\ngot: %v\n", cli, last, v)
@@ -241,10 +224,10 @@ func GenericTest(t *testing.T, part string, nclients int, unreliable bool, crash
 			}
 		})
 
-		if partitions {
+		if unreliable || partitions {
 			// Allow the clients to perform some operations without interruption
 			time.Sleep(300 * time.Millisecond)
-			go partitioner(t, cluster, ch_partitioner, &done_partitioner, unreliable, electionTimeout)
+			go networkchaos(t, cluster, ch_partitioner, &done_partitioner, unreliable, partitions, electionTimeout)
 		}
 		if confchange {
 			// Allow the clients to perfrom some operations without interruption
@@ -255,7 +238,7 @@ func GenericTest(t *testing.T, part string, nclients int, unreliable bool, crash
 		atomic.StoreInt32(&done_clients, 1)     // tell clients to quit
 		atomic.StoreInt32(&done_partitioner, 1) // tell partitioner to quit
 		atomic.StoreInt32(&done_confchanger, 1) // tell confchanger to quit
-		if partitions {
+		if unreliable || partitions {
 			// log.Printf("wait for partitioner\n")
 			<-ch_partitioner
 			// reconnect network and submit a request. A client may
@@ -446,7 +429,7 @@ func TestPersistPartition2B(t *testing.T) {
 }
 
 func TestPersistPartitionUnreliable2B(t *testing.T) {
-	// Test: unreliable net, restarts, partitions, many clients (3A) ...
+	// Test: unreliable net, restarts, partitions, many clients (2B) ...
 	GenericTest(t, "2B", 5, true, true, true, -1, false, false)
 }
 

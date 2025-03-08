@@ -76,93 +76,87 @@ func (s *balanceRegionScheduler) IsScheduleAllowed(cluster opt.Cluster) bool {
 	return s.opController.OperatorCount(operator.OpRegion) < cluster.GetRegionScheduleLimit()
 }
 
-type storeWithSort []*core.StoreInfo
-
-func (s storeWithSort) Len() int {
-	return len(s)
-}
-
-func (s storeWithSort) Less(i, j int) bool {
-	return s[i].GetRegionSize() < s[j].GetRegionSize()
-}
-
-func (s storeWithSort) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-
 func (s *balanceRegionScheduler) Schedule(cluster opt.Cluster) *operator.Operator {
 	// Your Code Here (3C).
-	stores := make(storeWithSort, 0)
-	maxTime := cluster.GetMaxStoreDownTime()
-	for _, store := range cluster.GetStores() {
-		if store.IsUp() && store.DownTime() < maxTime {
-			stores = append(stores, store)
+	// select all suitable stores
+	suitStores := make([]*core.StoreInfo, 0)
+	for _ , store := range cluster.GetStores() {
+		// should be up and the downTime cannot be longer than MaxStoreDownTime of the cluster
+		if store.IsUp() && store.DownTime() <= cluster.GetMaxStoreDownTime(){
+			suitStores = append(suitStores, store)
 		}
 	}
-	sort.Sort(stores)
-	i := len(stores) - 1
-	if i < 2 {
-		return nil
-	}
-	isLeader := false
-	var resRegion *core.RegionInfo
-	start, end := []byte(""), []byte("")
-	for i > 0 {
-		cluster.GetPendingRegionsWithLock(stores[i].GetID(), func(rc core.RegionsContainer) {
-			resRegion = rc.RandomRegion(start, end)
-		})
-		if resRegion != nil {
-			break
-		}
-		cluster.GetFollowersWithLock(stores[i].GetID(), func(rc core.RegionsContainer) {
-			resRegion = rc.RandomRegion(start, end)
-		})
-		if resRegion != nil {
-			break
-		}
-		cluster.GetLeadersWithLock(stores[i].GetID(), func(rc core.RegionsContainer) {
-			resRegion = rc.RandomRegion(start, end)
-		})
-		if resRegion != nil {
-			isLeader = true
-			break
-		}
-		i--
-	}
-	if resRegion == nil {
-		return nil
-	}
-	src := stores[i]
-	var dst *core.StoreInfo
-	storesId := resRegion.GetStoreIds()
 
-	if len(storesId) < cluster.GetMaxReplicas() {
+	if len(suitStores) == 1 || len(suitStores) == 0 {
 		return nil
 	}
-	//从前向后取得合适store
-	for idx := 0; idx < i; idx++ {
-		if _, ok := storesId[stores[idx].GetID()]; !ok {
-			dst = stores[idx]
+
+	// sort them according to their region size
+	// 递减排序
+	sort.Slice(suitStores, func(i,j int) bool{
+		return suitStores[i].GetRegionSize() > suitStores[j].GetRegionSize()
+	})
+
+	// First, it will try to select a pending region
+	var region *core.RegionInfo
+	for _, suitStore := range suitStores {
+		cluster.GetPendingRegionsWithLock(suitStore.GetID(), func(container core.RegionsContainer) {
+			region = container.RandomRegion(nil,nil)
+		})
+		if region != nil {
+			break
+		}
+		cluster.GetFollowersWithLock(suitStore.GetID(), func(container core.RegionsContainer) {
+			region = container.RandomRegion(nil,nil)
+		})
+		if region != nil {
+			break
+		}
+		cluster.GetLeadersWithLock(suitStore.GetID(), func(container core.RegionsContainer) {
+			region = container.RandomRegion(nil,nil)
+		})
+		if region != nil {
 			break
 		}
 	}
-	if dst == nil {
+
+	if region == nil {
 		return nil
 	}
-	if src.GetRegionSize()-dst.GetRegionSize() > 2*resRegion.GetApproximateSize() {
-		peer, err := cluster.AllocPeer(dst.GetID())
-		if err != nil {
-			return nil
-		}
-		kind := operator.OpBalance
-		if isLeader {
-			kind |= operator.OpLeader
-		}
-		op, err := operator.CreateMovePeerOperator("", cluster, resRegion, kind, src.GetID(), dst.GetID(), peer.GetId())
-		if err != nil {
-			return nil
-		}
-		return op
+	if len(region.GetStoreIds()) < cluster.GetMaxReplicas(){
+		return nil
 	}
-	return nil
+
+	var target *core.StoreInfo
+	var source *core.StoreInfo
+	source = suitStores[0]
+
+	for i := len(suitStores)-1; i >= 0; i-- {
+		suitStore := suitStores[i]
+		exist := region.GetStorePeer(suitStore.GetID())
+		if exist == nil {
+			target = suitStore
+			break
+		}
+	}
+
+	if target == nil {
+		return nil
+	}
+
+	// make sure that the difference has to be bigger than two times the approximate size of the region
+	diff := source.GetRegionSize() - target.GetRegionSize()
+	if diff <= 2* region.GetApproximateSize() {
+		return nil
+	}
+
+	newPeer, err := cluster.AllocPeer(target.GetID())
+	if err != nil {
+		panic(err)
+	}
+	op, err := operator.CreateMovePeerOperator("balance_region", cluster,region, operator.OpBalance, source.GetID(),target.GetID(),newPeer.GetId())
+	if err != nil {
+		panic(err)
+	}
+	return op
 }

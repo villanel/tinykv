@@ -46,7 +46,6 @@ func (pr *router) register(peer *peer) {
 		peer: peer,
 	}
 	pr.peers.Store(id, newPeer)
-	//log.Infof("%p register %s", pr, peer.Tag)
 }
 
 func (pr *router) close(regionID uint64) {
