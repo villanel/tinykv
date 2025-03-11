@@ -153,12 +153,11 @@ const (
 	defaultAutoCompactionRetention = "1h"
 
 	defaultName                = "pd"
-	defaultClientUrls          = "http://127.0.0.1:2379"
+	defaultClientUrls          = "http://192.168.2.18:2379"
 	defaultPeerUrls            = "http://127.0.0.1:2380"
 	defaultInitialClusterState = embed.ClusterStateFlagNew
 
-	// etcd use 100ms for heartbeat and 1s for election timeout.
-	// We can enlarge both a little to reduce the network aggression.
+	// etcd use 100ms for heartbeat and 1s for election timeout.b n
 	// now embed etcd use TickMs for heartbeat, we will update
 	// after embed etcd decouples tick and heartbeat.
 	defaultTickInterval = 500 * time.Millisecond

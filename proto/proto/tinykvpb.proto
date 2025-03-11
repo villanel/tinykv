@@ -35,4 +35,14 @@ service TinyKv {
 
     // Coprocessor 
     rpc Coprocessor(coprocessor.Request) returns (coprocessor.Response) {}
+
+    rpc SAdd(kvrpcpb.SetAddRequest) returns (kvrpcpb.SetAddResponse);
+    rpc SMembers(kvrpcpb.SetMembersRequest) returns (kvrpcpb.SetMembersResponse);
+    rpc SRem(kvrpcpb.SetRemoveRequest) returns (kvrpcpb.SetRemoveResponse);
+    rpc SIsMember(kvrpcpb.SetIsMemberRequest) returns (kvrpcpb.SetIsMemberResponse);
+    rpc SCard(kvrpcpb.SetCardRequest) returns (kvrpcpb.SetCardResponse);
+    rpc SUnion(kvrpcpb.SetUnionRequest) returns (kvrpcpb.SetUnionResponse);
+
+
+
 }

@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+
 	"github.com/pingcap-incubator/tinykv/kv/transaction/mvcc"
 	"github.com/pingcap-incubator/tinykv/kv/util/engine_util"
 
@@ -117,10 +118,10 @@ func (server *Server) KvPrewrite(_ context.Context, req *kvrpcpb.PrewriteRequest
 		if write != nil && commitTs > txn.StartTS {
 			keyError := &kvrpcpb.KeyError{
 				Conflict: &kvrpcpb.WriteConflict{
-					StartTs: write.StartTS,
+					StartTs:    write.StartTS,
 					ConflictTs: commitTs,
-					Key: key,
-					Primary: req.PrimaryLock,
+					Key:        key,
+					Primary:    req.PrimaryLock,
 				},
 			}
 			resp.Errors = append(resp.Errors, keyError)
@@ -162,11 +163,11 @@ func (server *Server) KvPrewrite(_ context.Context, req *kvrpcpb.PrewriteRequest
 		case kvrpcpb.Op_Lock:
 		}
 		// lock
-		txn.PutLock(mu.Key,&mvcc.Lock{
+		txn.PutLock(mu.Key, &mvcc.Lock{
 			Primary: req.PrimaryLock,
-			Ts: txn.StartTS,
-			Ttl: req.LockTtl,
-			Kind: kind,
+			Ts:      txn.StartTS,
+			Ttl:     req.LockTtl,
+			Kind:    kind,
 		})
 	}
 
@@ -187,7 +188,7 @@ func (server *Server) KvCommit(_ context.Context, req *kvrpcpb.CommitRequest) (*
 
 	reader, err := server.storage.Reader(req.Context)
 	if err != nil {
-		return  resp, err
+		return resp, err
 	}
 	txn := mvcc.NewMvccTxn(reader, req.StartVersion)
 
@@ -228,7 +229,7 @@ func (server *Server) KvCommit(_ context.Context, req *kvrpcpb.CommitRequest) (*
 		}
 		txn.PutWrite(key, req.CommitVersion, &mvcc.Write{
 			StartTS: txn.StartTS,
-			Kind: lock.Kind,
+			Kind:    lock.Kind,
 		})
 		txn.DeleteLock(key)
 	}
@@ -249,13 +250,12 @@ func (server *Server) KvScan(_ context.Context, req *kvrpcpb.ScanRequest) (*kvrp
 	}
 	txn := mvcc.NewMvccTxn(reader, req.Version)
 	scanner := mvcc.NewScanner(req.StartKey, txn)
-	kvPairs := make([]*kvrpcpb.KvPair,0)
-	for i:=0 ; i < int(req.Limit); i++ {
+	kvPairs := make([]*kvrpcpb.KvPair, 0)
+	for i := 0; i < int(req.Limit); i++ {
 		if !scanner.Iter.Valid() {
 			break
 		}
 		key, value, err := scanner.Next()
-
 
 		if err != nil {
 			return resp, err
@@ -283,7 +283,7 @@ func (server *Server) KvScan(_ context.Context, req *kvrpcpb.ScanRequest) (*kvrp
 		}
 		if value != nil {
 			pair := &kvrpcpb.KvPair{
-				Key: key,
+				Key:   key,
 				Value: value,
 			}
 			kvPairs = append(kvPairs, pair)
@@ -343,7 +343,7 @@ func (server *Server) KvCheckTxnStatus(_ context.Context, req *kvrpcpb.CheckTxnS
 	// 锁超时，清除
 	curTs := mvcc.PhysicalTime(req.CurrentTs)
 	lockTs := mvcc.PhysicalTime(lock.Ts)
-	if curTs > lockTs && curTs - lockTs >= lock.Ttl {
+	if curTs > lockTs && curTs-lockTs >= lock.Ttl {
 		txn.DeleteLock(req.PrimaryKey)
 		txn.DeleteValue(req.PrimaryKey)
 		// 回滚标记
@@ -371,7 +371,7 @@ func (server *Server) KvBatchRollback(_ context.Context, req *kvrpcpb.BatchRollb
 	if err != nil {
 		return resp, err
 	}
-	txn := mvcc.NewMvccTxn(reader,req.StartVersion)
+	txn := mvcc.NewMvccTxn(reader, req.StartVersion)
 	keys := req.Keys
 
 	// 检查
@@ -433,7 +433,7 @@ func (server *Server) KvResolveLock(_ context.Context, req *kvrpcpb.ResolveLockR
 		return resp, nil
 	}
 
-	txn :=mvcc.NewMvccTxn(reader, req.StartVersion)
+	txn := mvcc.NewMvccTxn(reader, req.StartVersion)
 	iter := reader.IterCF(engine_util.CfLock)
 
 	var keys [][]byte
@@ -455,10 +455,10 @@ func (server *Server) KvResolveLock(_ context.Context, req *kvrpcpb.ResolveLockR
 
 	if req.CommitVersion == 0 {
 		// rollback all
-		rbReq :=  &kvrpcpb.BatchRollbackRequest{
-			Keys: keys,
+		rbReq := &kvrpcpb.BatchRollbackRequest{
+			Keys:         keys,
 			StartVersion: txn.StartTS,
-			Context: req.Context,
+			Context:      req.Context,
 		}
 		rbResp, err := server.KvBatchRollback(nil, rbReq)
 		if err != nil {
@@ -470,10 +470,10 @@ func (server *Server) KvResolveLock(_ context.Context, req *kvrpcpb.ResolveLockR
 	} else if req.CommitVersion > 0 {
 		// commit those locks with the given commit timestamp
 		cmReq := &kvrpcpb.CommitRequest{
-			Keys: keys,
-			StartVersion: txn.StartTS,
+			Keys:          keys,
+			StartVersion:  txn.StartTS,
 			CommitVersion: req.CommitVersion,
-			Context: req.Context,
+			Context:       req.Context,
 		}
 		cmResp, err := server.KvCommit(nil, cmReq)
 		if err != nil {

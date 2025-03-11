@@ -10,6 +10,7 @@ option (gogoproto.sizer_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 
 // Raw commands.
+
 message RawGetRequest {
     Context context = 1;
     bytes key = 2;
@@ -257,4 +258,77 @@ message Context {
     metapb.RegionEpoch region_epoch = 2;
     metapb.Peer peer = 3;
     uint64 term = 5;
+}
+message SetAddRequest {
+    Context context = 1;
+    bytes key = 2;
+    repeated bytes members = 3;
+}
+
+message SetAddResponse {
+        errorpb.Error region_error = 1;
+
+    bool success = 2;
+}
+
+message SetMembersRequest {
+        Context context = 1;
+
+    bytes key = 2;
+}
+
+message SetMembersResponse {
+        errorpb.Error region_error = 1;
+
+    repeated bytes members = 2;
+}
+
+message SetRemoveRequest {
+        Context context = 1;
+
+    bytes key = 2;
+    repeated string members = 3;
+}
+
+message SetRemoveResponse {
+        errorpb.Error region_error = 1;
+
+    bool success = 2;
+}
+
+message SetIsMemberRequest {
+        Context context = 1;
+
+    bytes key = 2;
+    bytes member = 3;
+}
+
+message SetIsMemberResponse {
+        errorpb.Error region_error = 1;
+
+    bool exists = 2;
+}
+
+message SetCardRequest {
+        Context context = 1;
+
+    bytes key = 2;
+}
+
+message SetCardResponse {
+        errorpb.Error region_error = 1;
+
+    int32 count = 2;
+}
+
+message SetUnionRequest {
+        Context context = 1;
+
+    repeated bytes keys = 2;
+}
+
+message SetUnionResponse {
+        errorpb.Error region_error = 1;
+
+    repeated bytes members = 2;
 }

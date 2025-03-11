@@ -1,0 +1,27 @@
+version: '3'
+services:
+  tinyscheduler:
+    image: tinyscheduler-server
+    container_name: tinyscheduler
+    network_mode: "host"  # ✅ 使用 host 网络
+
+
+  tinykv:
+    image: tinykv-server
+    container_name: tinykv
+      #  network_mode: "host"  # ✅ 使用 host 网络
+    depends_on:
+      - tinyscheduler
+    entrypoint: [ "sh", "-c", 'exec /usr/local/bin/tinykv-server -scheduler 192.168.2.18:2379 -addr $(hostname -i):20160' ]
+
+  tinykv2:
+    image: tinykv-server
+    container_name: tinykv2
+      #  network_mode: "host"  # ✅ 使用 host 网络
+    depends_on:
+      - tinyscheduler
+    entrypoint: [ "sh", "-c", 'exec /usr/local/bin/tinykv-server -scheduler 192.168.2.18:2379 -addr $(hostname -i):20160' ]
+
+networks:
+  tinykv-net:
+
