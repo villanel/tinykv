@@ -37,6 +37,7 @@ func sAddSet(ctx context.Context, m *MemDb, cmd [][]byte, conn net.Conn) resp.Re
 		res += sets.Add(string(cmd[i]))
 	}
 
+	m.db.Set(key, sets)
 	return resp.MakeIntData(int64(res))
 }
 
@@ -448,6 +449,7 @@ func sMoveSet(ctx context.Context, m *MemDb, cmd [][]byte, conn net.Conn) resp.R
 	}
 	// remove elem in the old set
 	res := srcSet.Remove(val)
+	m.db.Set(srcKey, srcSet)
 	if res == 0 {
 		return resp.MakeIntData(0)
 	}
@@ -522,6 +524,7 @@ func sPopSet(ctx context.Context, m *MemDb, cmd [][]byte, conn net.Conn) resp.Re
 			res = append(res, resp.MakeBulkData([]byte(val)))
 		}
 	}
+	m.db.Set(key, set)
 	return resp.MakeArrayData(res)
 }
 
@@ -616,6 +619,7 @@ func sRemSet(ctx context.Context, m *MemDb, cmd [][]byte, conn net.Conn) resp.Re
 		res += set.Remove(member)
 	}
 
+	m.db.Set(key, set)
 	return resp.MakeIntData(int64(res))
 }
 

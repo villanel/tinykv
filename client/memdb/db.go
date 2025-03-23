@@ -2,7 +2,6 @@ package memdb
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 	"net"
 	"strings"
@@ -20,7 +19,7 @@ import (
 // locks is used to lock a key for db to ensure some atomic operations
 // SubChans are an independent concurrent map of channel shards used in PUB/SUB commands
 type MemDb struct {
-	db       *ConcurrentMap
+	db       *raftMap
 	ttlKeys  *ConcurrentMap
 	locks    *Locks
 	SubChans *ChanMap
@@ -29,7 +28,8 @@ type MemDb struct {
 
 func NewMemDb(client *tikv.RawKVClient) *MemDb {
 	memDb := &MemDb{
-		db:       NewConcurrentMap(config.Configures.ShardNum),
+
+		db:       NewRaftMap(client),
 		ttlKeys:  NewConcurrentMap(config.Configures.ShardNum),
 		locks:    NewLocks(config.Configures.ShardNum * 2),
 		SubChans: NewChanMap(config.Configures.ShardNum),
@@ -137,7 +137,7 @@ func (m *MemDb) DelTTL(key string) int {
 	return m.ttlKeys.Delete(key)
 }
 
-func (m *MemDb) GetSnapshot() ([]byte, error) {
-	// todo: change the snapshot format to rdb|aof
-	return json.Marshal(m.db.KeyVals())
-}
+// func (m *MemDb) GetSnapshot() ([]byte, error) {
+// 	// todo: change the snapshot format to rdb|aof
+// 	return json.Marshal(m.db.KeyVals())
+// }

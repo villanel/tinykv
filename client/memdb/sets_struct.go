@@ -1,13 +1,38 @@
 package memdb
 
-import "math"
+import (
+	"encoding/json"
+	"math"
+)
 
 type void struct{}
 
 type Set struct {
-	table map[string]void
+	table map[string]void `json:"-"`
 }
 
+// 自定义序列化逻辑
+func (s *Set) MarshalJSON() ([]byte, error) {
+	keys := make([]string, 0, len(s.table))
+	for k := range s.table {
+		keys = append(keys, k)
+	}
+	return json.Marshal(keys) // 序列化为JSON数组
+}
+
+// 自定义反序列化逻辑
+func (s *Set) UnmarshalJSON(data []byte) error {
+	var keys []string
+	if err := json.Unmarshal(data, &keys); err != nil {
+		return err
+	}
+
+	s.table = make(map[string]void)
+	for _, k := range keys {
+		s.table[k] = void{}
+	}
+	return nil
+}
 func NewSet() *Set {
 	return &Set{make(map[string]void)}
 }

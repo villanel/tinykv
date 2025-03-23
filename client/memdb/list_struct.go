@@ -3,6 +3,8 @@ package memdb
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+
 	"github.com/google/uuid"
 )
 
@@ -16,6 +18,52 @@ type List struct {
 	// register subscription functions here. each time an element be added to the list will go through subscribers.
 	LSubscriptions map[string]Out
 	RSubscriptions map[string]Out
+}
+
+func (l *List) MarshalJSON() ([]byte, error) {
+	vals := make([][]byte, 0, l.Len)
+	current := l.Head
+	for current != nil {
+		vals = append(vals, current.Val)
+		current = current.Next
+	}
+	aux := struct {
+		Len  int      `json:"len"`
+		Vals [][]byte `json:"vals"`
+	}{
+		Len:  l.Len,
+		Vals: vals,
+	}
+	return json.Marshal(aux)
+}
+
+func (l *List) UnmarshalJSON(data []byte) error {
+	aux := struct {
+		Len  int      `json:"len"`
+		Vals [][]byte `json:"vals"`
+	}{}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	l.Len = aux.Len
+	l.Head = nil
+	l.Tail = nil
+	l.LSubscriptions = make(map[string]Out)
+	l.RSubscriptions = make(map[string]Out)
+	if len(aux.Vals) == 0 {
+		return nil
+	}
+	nodes := make([]*ListNode, len(aux.Vals))
+	for i, val := range aux.Vals {
+		nodes[i] = &ListNode{Val: val}
+		if i > 0 {
+			nodes[i].Prev = nodes[i-1]
+			nodes[i-1].Next = nodes[i]
+		}
+	}
+	l.Head = nodes[0]
+	l.Tail = nodes[len(nodes)-1]
+	return nil
 }
 
 type ListNode struct {

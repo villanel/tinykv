@@ -334,6 +334,7 @@ func lPopList(ctx context.Context, m *MemDb, cmd [][]byte, conn net.Conn) resp.R
 		}
 		res = append(res, resp.MakeBulkData(e.Val))
 	}
+	m.db.Set(key, list)
 	return resp.MakeArrayData(res)
 }
 
@@ -396,6 +397,7 @@ func rPopList(ctx context.Context, m *MemDb, cmd [][]byte, conn net.Conn) resp.R
 		}
 		res = append(res, resp.MakeBulkData(e.Val))
 	}
+	m.db.Set(key, list)
 	return resp.MakeArrayData(res)
 }
 
@@ -432,6 +434,7 @@ func lPushList(ctx context.Context, m *MemDb, cmd [][]byte, conn net.Conn) resp.
 		list.LPush(cmd[i])
 	}
 	// return the length of the list
+	m.db.Set(key, list)
 	return resp.MakeIntData(int64(list.Len))
 }
 
@@ -463,6 +466,7 @@ func lPushXList(ctx context.Context, m *MemDb, cmd [][]byte, conn net.Conn) resp
 	for i := 2; i < len(cmd); i++ {
 		list.LPush(cmd[i])
 	}
+	m.db.Set(key, list)
 	return resp.MakeIntData(int64(list.Len))
 }
 
@@ -495,6 +499,7 @@ func rPushList(ctx context.Context, m *MemDb, cmd [][]byte, conn net.Conn) resp.
 	for i := 2; i < len(cmd); i++ {
 		list.RPush(cmd[i])
 	}
+	m.db.Set(key, list)
 	return resp.MakeIntData(int64(list.Len))
 }
 
@@ -526,6 +531,7 @@ func rPushXList(ctx context.Context, m *MemDb, cmd [][]byte, conn net.Conn) resp
 	for i := 2; i < len(cmd); i++ {
 		list.RPush(cmd[i])
 	}
+	m.db.Set(key, list)
 	return resp.MakeIntData(int64(list.Len))
 }
 
@@ -566,6 +572,7 @@ func lSetList(ctx context.Context, m *MemDb, cmd [][]byte, conn net.Conn) resp.R
 	if !success {
 		return resp.MakeErrorData("index out of range")
 	}
+	m.db.Set(key, list)
 	return resp.MakeStringData("OK")
 }
 
@@ -611,6 +618,7 @@ func lRemList(ctx context.Context, m *MemDb, cmd [][]byte, conn net.Conn) resp.R
 
 	res := list.RemoveElement(cmd[3], count)
 
+	m.db.Set(key, list)
 	return resp.MakeIntData(int64(res))
 }
 
@@ -653,6 +661,7 @@ func lTrimList(ctx context.Context, m *MemDb, cmd [][]byte, conn net.Conn) resp.
 	}()
 
 	list.Trim(start, end)
+	m.db.Set(key, list)
 	return resp.MakeStringData("OK")
 }
 
@@ -776,6 +785,8 @@ func lMoveList(ctx context.Context, m *MemDb, cmd [][]byte, conn net.Conn) resp.
 	} else {
 		desList.RPush(popElem.Val)
 	}
+	m.db.Set(src, srcList)
+	m.db.Set(desDrc, desList)
 	return resp.MakeBulkData(popElem.Val)
 }
 
@@ -842,6 +853,7 @@ func bXPopList(ctx context.Context, m *MemDb, cmd [][]byte, direction string) re
 						} else if direction == right {
 							node = list.RPop()
 						}
+						m.db.Set(key, list)
 						if node != nil {
 							// find a value. need to manually release the lock since we are leaving this scope
 							m.locks.UnLock(key)
@@ -849,7 +861,8 @@ func bXPopList(ctx context.Context, m *MemDb, cmd [][]byte, direction string) re
 						}
 					}
 				}
-				// will finally release the lock here if nothing available
+				// listkwill finally release the lock here if nothing available
+
 				m.locks.UnLock(key)
 			}
 		// timeout

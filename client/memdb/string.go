@@ -145,14 +145,19 @@ func getString(ctx context.Context, m *MemDb, cmd [][]byte, conn net.Conn) resp.
 		return resp.MakeErrorData("error: commands is invalid")
 	}
 
-	key := cmd[1]
+	key := string(cmd[1])
 
-	val, ok := m.client.Get(key)
-	if ok != nil {
+	m.locks.RLock(key)
+	defer m.locks.RUnLock(key)
+
+	val, ok := m.db.Get(key)
+	if !ok {
 		return resp.MakeBulkData(nil)
 	}
-	byteVal := val
-
+	byteVal, ok := val.([]byte)
+	if !ok {
+		return resp.MakeErrorData("WRONGTYPE Operation against a key holding the wrong kind of value")
+	}
 	return resp.MakeBulkData(byteVal)
 }
 

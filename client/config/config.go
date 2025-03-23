@@ -19,7 +19,7 @@ var Configures *Config
 var (
 	defaultHost           = "127.0.0.1"
 	defaultStore          = "tikv"
-	defaultPath           = "127.0.0.1:2379"
+	defaultPath           = "192.168.2.18:2379"
 	defaultPort           = 6380
 	defaultLogDir         = "./"
 	defaultLogLevel       = "info"

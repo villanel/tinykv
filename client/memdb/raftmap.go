@@ -35,8 +35,10 @@ func (m *raftMap) Set(key string, value any) int {
 	switch value.(type) {
 	case *List:
 		typeStr = "list"
-	case Set:
+	case *Set:
 		typeStr = "set"
+	case *Hash:
+		typeStr = "hash"
 	case nil:
 		typeStr = "nil"
 	case bool:
@@ -256,12 +258,29 @@ func (m *raftMap) Get(key string) (any, bool) {
 		}
 		return &list, true
 	case "set":
+		data, err := json.Marshal(entry.Value)
+		if err != nil {
+			log.Printf("Set数据转换失败: %v", err)
+			return nil, false
+		}
 		var s Set
-		if err := json.Unmarshal([]byte(entry.Value.(string)), &s); err != nil {
+		if err := json.Unmarshal(data, &s); err != nil {
 			log.Printf("Set反序列化失败: %v", err)
 			return nil, false
 		}
 		return &s, true
+	case "hash":
+		data, err := json.Marshal(entry.Value)
+		if err != nil {
+			log.Printf("hash数据转换失败: %v", err)
+			return nil, false
+		}
+		var h Hash
+		if err := json.Unmarshal(data, &h); err != nil {
+			log.Printf("hash反序列化失败: %v", err)
+			return nil, false
+		}
+		return &h, true
 	default:
 		return entry.Value, true
 	}

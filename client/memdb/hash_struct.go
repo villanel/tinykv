@@ -1,11 +1,42 @@
 package memdb
 
-import "strconv"
+import (
+	"encoding/json"
+	"errors"
+	"strconv"
+)
 
 type Hash struct {
 	table map[string][]byte
 }
 
+// MarshalJSON 序列化为 JSON
+func (h *Hash) MarshalJSON() ([]byte, error) {
+	// 直接序列化内部的 table map
+	return json.Marshal(h.table)
+}
+
+// UnmarshalJSON 反序列化 JSON
+func (h *Hash) UnmarshalJSON(data []byte) error {
+	if h == nil {
+		return errors.New("cannot unmarshal into nil Hash")
+	}
+
+	// 临时存储反序列化数据
+	var temp map[string][]byte
+	if err := json.Unmarshal(data, &temp); err != nil {
+		return err
+	}
+
+	// 初始化或覆盖原有 table
+	if h.table == nil {
+		h.table = make(map[string][]byte)
+	}
+	for k, v := range temp {
+		h.table[k] = v
+	}
+	return nil
+}
 func NewHash() *Hash {
 	return &Hash{make(map[string][]byte)}
 }

@@ -48,6 +48,7 @@ func hDelHash(ctx context.Context, m *MemDb, cmd [][]byte, conn net.Conn) resp.R
 		res += hash.Del(string(cmd[i]))
 	}
 
+	m.db.Set(key, hash)
 	return resp.MakeIntData(int64(res))
 }
 
@@ -372,6 +373,7 @@ func hSetHash(ctx context.Context, m *MemDb, cmd [][]byte, conn net.Conn) resp.R
 		value := cmd[i+1]
 		hash.Set(field, value)
 	}
+	m.db.Set(key, hash)
 	return resp.MakeStringData("OK")
 }
 
@@ -411,6 +413,7 @@ func hSetNxHash(ctx context.Context, m *MemDb, cmd [][]byte, conn net.Conn) resp
 	}
 
 	hash.Set(field, value)
+	m.db.Set(key, hash)
 	return resp.MakeIntData(1)
 }
 
